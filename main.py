@@ -167,7 +167,6 @@ syllabus = {
         "EE": "https://drive.google.com/uc?export=download&id=1BwL_f3KCmWzuEulEth3G3hQw5sxLvBOy",
         "ME": "https://drive.google.com/uc?export=download&id=1PPkfTohITDMkIFNuw836gSOSUjCFtt3n"
     }
-}
 
 # ================== MENU ==================
 def get_main_menu():

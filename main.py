@@ -10,10 +10,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ================== TOKEN ==================
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN")  # yaha apna token bhi daal sakte ho
 bot = telebot.TeleBot(TOKEN)
 
-# ================== FORCE JOIN SETTINGS ==================
+# ================== FORCE JOIN ==================
 CHANNEL_USERNAME = "@EngineersPathwayOfficial"
 YOUTUBE_LINK = "https://youtube.com/@engineerspathwayofficial"
 
@@ -89,7 +89,6 @@ def track_user(user_id, command="start"):
 
 load_analytics()
 
-# ================== SYLLABUS ==================
 # ===== SYLLABUS DATABASE WITH WORKING LINKS =====
 syllabus = {
     "1stNew": {
@@ -167,7 +166,6 @@ syllabus = {
         "EE": "https://drive.google.com/uc?export=download&id=1BwL_f3KCmWzuEulEth3G3hQw5sxLvBOy",
         "ME": "https://drive.google.com/uc?export=download&id=1PPkfTohITDMkIFNuw836gSOSUjCFtt3n"
     }
-
 }
 
 # ================== MENU ==================
@@ -200,8 +198,6 @@ def syllabus_menu(message):
         send_force_join(message)
         return
 
-    track_user(message.chat.id, "syllabus")
-
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     for sem in syllabus.keys():
         markup.add(sem)
@@ -209,14 +205,14 @@ def syllabus_menu(message):
 
     bot.send_message(message.chat.id, "Select Semester:", reply_markup=markup)
 
-# ================== SEM ==================
+# ================== SEM SELECT ==================
 @bot.message_handler(func=lambda m: m.text in syllabus.keys())
 def sem_select(message):
     if not check_membership(message.chat.id):
         send_force_join(message)
         return
 
-    user_data[message.chat.id] = message.text
+    user_data[message.chat.id] = {"sem": message.text}
 
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     for branch in syllabus[message.text].keys():
@@ -225,26 +221,33 @@ def sem_select(message):
 
     bot.send_message(message.chat.id, "Select Branch:", reply_markup=markup)
 
-# ================== PDF ==================
-@bot.message_handler(func=lambda m: m.text in ["CE"])
+# ================== SEND PDF ==================
+@bot.message_handler(func=lambda m: m.text in ["CE","CS","EE","ECE","ME"])
 def send_pdf(message):
     if not check_membership(message.chat.id):
         send_force_join(message)
         return
 
-    sem = user_data.get(message.chat.id)
+    data = user_data.get(message.chat.id)
 
-    if not sem:
+    if not data:
         bot.send_message(message.chat.id, "❌ Pehle semester select karo")
         return
 
-    file_url = syllabus[sem][message.text]
+    sem = data["sem"]
+    branch = message.text
 
-    bot.send_document(
-        message.chat.id,
-        file_url,
-        caption=f"{sem} - {message.text} Syllabus"
-    )
+    if branch not in syllabus.get(sem, {}):
+        bot.send_message(message.chat.id, "❌ Branch available nahi hai")
+        return
+
+    file_url = syllabus[sem][branch]
+
+    try:
+        bot.send_document(message.chat.id, file_url,
+                          caption=f"{sem} - {branch} Syllabus")
+    except:
+        bot.send_message(message.chat.id, f"Download failed\n{file_url}")
 
 # ================== STATS ==================
 @bot.message_handler(func=lambda m: m.text == "📈 Statistics")
@@ -262,19 +265,11 @@ def stats(message):
 # ================== HELP ==================
 @bot.message_handler(func=lambda m: m.text == "ℹ️ Help")
 def help_msg(message):
-    if not check_membership(message.chat.id):
-        send_force_join(message)
-        return
-
     bot.send_message(message.chat.id, "Use 📚 Syllabus")
 
 # ================== FEEDBACK ==================
 @bot.message_handler(func=lambda m: m.text == "⭐ Feedback")
 def feedback(message):
-    if not check_membership(message.chat.id):
-        send_force_join(message)
-        return
-
     bot.send_message(message.chat.id, "Send your feedback")
 
 # ================== BACK ==================

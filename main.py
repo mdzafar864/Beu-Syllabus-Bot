@@ -168,6 +168,8 @@ syllabus = {
         "ME": "https://drive.google.com/uc?export=download&id=1PPkfTohITDMkIFNuw836gSOSUjCFtt3n"
     }
 
+}
+
 # ================== MENU ==================
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)

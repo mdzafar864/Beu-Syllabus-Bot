@@ -5,26 +5,24 @@ import json
 from datetime import datetime
 import logging
 
-# ================== CONFIG ==================
-TOKEN = os.getenv("BOT_TOKEN")  # ya direct token daal sakte ho
-CHANNEL_USERNAME = "@EngineersPathwayOfficial"
-YOUTUBE_LINK = "https://youtube.com/@engineerspathwayofficial"
-
 # ================== LOGGING ==================
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ================== TOKEN ==================
+TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
-# ================== USER DATA ==================
-user_data = {}
+# ================== FORCE JOIN SETTINGS ==================
+CHANNEL_USERNAME = "@EngineersPathwayOfficial"
+YOUTUBE_LINK = "https://youtube.com/@engineerspathwayofficial"
 
-# ================== FORCE JOIN ==================
 def check_membership(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
         return member.status in ["member", "administrator", "creator"]
-    except:
+    except Exception as e:
+        print("Join Check Error:", e)
         return False
 
 def send_force_join(message):
@@ -36,48 +34,62 @@ def send_force_join(message):
     bot.send_message(
         message.chat.id,
         "🚫 *Access Denied!*\n\n"
-        "Bot use karne ke liye:\n\n"
+        "🔥 Free Syllabus + Notes + Updates\n\n"
         "1️⃣ Telegram channel join karo\n"
         "2️⃣ YouTube subscribe karo\n\n"
-        "👇 Join karke button dabao",
+        "👇 Join karke 'I Joined' dabao",
         reply_markup=markup,
         parse_mode='Markdown'
     )
 
-# ================== MENU ==================
-def get_main_menu():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("📚 Syllabus")
-    markup.add("ℹ️ Help", "⭐ Feedback")
-    return markup
-
-# ================== START ==================
-@bot.message_handler(commands=['start'])
-def start(message):
-    if not check_membership(message.chat.id):
-        send_force_join(message)
-        return
-
-    bot.send_message(
-        message.chat.id,
-        "🎓 *Welcome to BEU Syllabus Bot* 🎓",
-        reply_markup=get_main_menu(),
-        parse_mode='Markdown'
-    )
-
-# ================== CALLBACK ==================
 @bot.callback_query_handler(func=lambda call: call.data == "check_join")
-def callback_check(call):
+def check_join_callback(call):
     if check_membership(call.from_user.id):
         bot.answer_callback_query(call.id, "✅ Verified!")
-        bot.send_message(
-            call.message.chat.id,
-            "🎉 Access Granted!",
-            reply_markup=get_main_menu()
-        )
+        start(call.message)
     else:
-        bot.answer_callback_query(call.id, "❌ Pehle Telegram join karo!", show_alert=True)
+        bot.answer_callback_query(call.id, "❌ Pehle join karo!", show_alert=True)
 
+# ================== USER DATA ==================
+user_data = {}
+
+user_analytics = {
+    "total_users": set(),
+    "daily_users": set(),
+    "commands_used": {}
+}
+
+ANALYTICS_FILE = "user_analytics.json"
+
+def load_analytics():
+    global user_analytics
+    try:
+        with open(ANALYTICS_FILE, 'r') as f:
+            loaded = json.load(f)
+            loaded["total_users"] = set(loaded.get("total_users", []))
+            loaded["daily_users"] = set(loaded.get("daily_users", []))
+            user_analytics = loaded
+    except:
+        save_analytics()
+
+def save_analytics():
+    to_save = {
+        "total_users": list(user_analytics["total_users"]),
+        "daily_users": list(user_analytics["daily_users"]),
+        "commands_used": user_analytics["commands_used"]
+    }
+    with open(ANALYTICS_FILE, 'w') as f:
+        json.dump(to_save, f)
+
+def track_user(user_id, command="start"):
+    user_analytics["total_users"].add(user_id)
+    user_analytics["daily_users"].add(user_id)
+    user_analytics["commands_used"][command] = user_analytics["commands_used"].get(command, 0) + 1
+    save_analytics()
+
+load_analytics()
+
+# ================== SYLLABUS ==================
 # ===== SYLLABUS DATABASE WITH WORKING LINKS =====
 syllabus = {
     "1stNew": {
@@ -157,12 +169,37 @@ syllabus = {
     }
 }
 
+# ================== MENU ==================
+def get_main_menu():
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("📚 Syllabus")
+    markup.add("📈 Statistics", "ℹ️ Help", "⭐ Feedback")
+    return markup
+
+# ================== START ==================
+@bot.message_handler(commands=['start'])
+def start(message):
+    if not check_membership(message.chat.id):
+        send_force_join(message)
+        return
+
+    track_user(message.chat.id, "start")
+
+    bot.send_message(
+        message.chat.id,
+        "🎓 *Welcome to BEU Syllabus Bot* 🎓",
+        reply_markup=get_main_menu(),
+        parse_mode='Markdown'
+    )
+
 # ================== SYLLABUS MENU ==================
 @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
 def syllabus_menu(message):
     if not check_membership(message.chat.id):
         send_force_join(message)
         return
+
+    track_user(message.chat.id, "syllabus")
 
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     for sem in syllabus.keys():
@@ -171,7 +208,7 @@ def syllabus_menu(message):
 
     bot.send_message(message.chat.id, "Select Semester:", reply_markup=markup)
 
-# ================== SEM SELECT ==================
+# ================== SEM ==================
 @bot.message_handler(func=lambda m: m.text in syllabus.keys())
 def sem_select(message):
     if not check_membership(message.chat.id):
@@ -187,8 +224,8 @@ def sem_select(message):
 
     bot.send_message(message.chat.id, "Select Branch:", reply_markup=markup)
 
-# ================== SEND PDF ==================
-@bot.message_handler(func=lambda m: m.text in ["CE", "CS"])
+# ================== PDF ==================
+@bot.message_handler(func=lambda m: m.text in ["CE"])
 def send_pdf(message):
     if not check_membership(message.chat.id):
         send_force_join(message)
@@ -208,14 +245,35 @@ def send_pdf(message):
         caption=f"{sem} - {message.text} Syllabus"
     )
 
+# ================== STATS ==================
+@bot.message_handler(func=lambda m: m.text == "📈 Statistics")
+def stats(message):
+    if not check_membership(message.chat.id):
+        send_force_join(message)
+        return
+
+    bot.send_message(
+        message.chat.id,
+        f"👥 Total Users: {len(user_analytics['total_users'])}\n"
+        f"📅 Today Users: {len(user_analytics['daily_users'])}"
+    )
+
 # ================== HELP ==================
 @bot.message_handler(func=lambda m: m.text == "ℹ️ Help")
 def help_msg(message):
-    bot.send_message(message.chat.id, "Use 📚 Syllabus button")
+    if not check_membership(message.chat.id):
+        send_force_join(message)
+        return
+
+    bot.send_message(message.chat.id, "Use 📚 Syllabus")
 
 # ================== FEEDBACK ==================
 @bot.message_handler(func=lambda m: m.text == "⭐ Feedback")
 def feedback(message):
+    if not check_membership(message.chat.id):
+        send_force_join(message)
+        return
+
     bot.send_message(message.chat.id, "Send your feedback")
 
 # ================== BACK ==================
@@ -229,5 +287,5 @@ def default(message):
     bot.send_message(message.chat.id, "Use menu buttons")
 
 # ================== RUN ==================
-print("Bot Running...")
+print("🚀 Bot Running...")
 bot.infinity_polling()

@@ -22,14 +22,18 @@ def check_membership(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
         return member.status in ["member", "administrator", "creator"]
-    except:
+    except Exception as e:
+        print(e)
         return False
 
 def send_force_join(message):
     markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("📢 Join Telegram", url="https://t.me/EngineersPathwayOfficial"))
-    markup.add(InlineKeyboardButton("▶️ Subscribe YouTube", url=YOUTUBE_LINK))
-    markup.add(InlineKeyboardButton("✅ I Joined", callback_data="check_join"))
+    markup.add(InlineKeyboardButton("📢 Join Telegram",
+                                    url="https://t.me/EngineersPathwayOfficial"))
+    markup.add(InlineKeyboardButton("▶️ Subscribe YouTube",
+                                    url=YOUTUBE_LINK))
+    markup.add(InlineKeyboardButton("✅ I Joined",
+                                    callback_data="check_join"))
 
     bot.send_message(
         message.chat.id,
@@ -62,7 +66,7 @@ ANALYTICS_FILE = "user_analytics.json"
 def load_analytics():
     global user_analytics
     try:
-        with open(ANALYTICS_FILE, 'r') as f:
+        with open(ANALYTICS_FILE, "r") as f:
             data = json.load(f)
             user_analytics["total_users"] = set(data.get("total_users", []))
             user_analytics["daily_users"] = set(data.get("daily_users", []))
@@ -71,7 +75,7 @@ def load_analytics():
         save_analytics()
 
 def save_analytics():
-    with open(ANALYTICS_FILE, 'w') as f:
+    with open(ANALYTICS_FILE, "w") as f:
         json.dump({
             "total_users": list(user_analytics["total_users"]),
             "daily_users": list(user_analytics["daily_users"]),
@@ -170,18 +174,18 @@ syllabus = {
 def get_main_menu():
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add("📚 Syllabus")
-    markup.add("📈 Statistics","ℹ️ Help","⭐ Feedback")
+    markup.add("📈 Statistics", "ℹ️ Help", "⭐ Feedback")
     return markup
 
 # ================== START ==================
-@bot.message_handler(commands=['start'])
+@bot.message_handler(commands=["start"])
 def start(message):
 
     if not check_membership(message.chat.id):
         send_force_join(message)
         return
 
-    track_user(message.chat.id,"start")
+    track_user(message.chat.id, "start")
 
     bot.send_message(
         message.chat.id,
@@ -189,52 +193,70 @@ def start(message):
         reply_markup=get_main_menu()
     )
 
-# ================== SYLLABUS ==================
-@bot.message_handler(func=lambda m:m.text=="📚 Syllabus")
+# ================== SYLLABUS MENU ==================
+@bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
 def syllabus_menu(message):
 
     if not check_membership(message.chat.id):
         send_force_join(message)
         return
 
-    markup=ReplyKeyboardMarkup(resize_keyboard=True)
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+
     for sem in syllabus.keys():
         markup.add(sem)
+
     markup.add("🔙 Main Menu")
 
-    bot.send_message(message.chat.id,"Select Semester:",reply_markup=markup)
+    bot.send_message(message.chat.id,
+                     "Select Semester:",
+                     reply_markup=markup)
 
-@bot.message_handler(func=lambda m:m.text in syllabus.keys())
+# ================== SEM SELECT ==================
+@bot.message_handler(func=lambda m: m.text in syllabus.keys())
 def sem_select(message):
 
-    user_data[message.chat.id]={"sem":message.text}
+    user_data[message.chat.id] = {"sem": message.text}
 
-    markup=ReplyKeyboardMarkup(resize_keyboard=True)
+    markup = ReplyKeyboardMarkup(resize_keyboard=True)
+
     for branch in syllabus[message.text].keys():
         markup.add(branch)
+
     markup.add("🔙 Main Menu")
 
-    bot.send_message(message.chat.id,"Select Branch:",reply_markup=markup)
+    bot.send_message(message.chat.id,
+                     "Select Branch:",
+                     reply_markup=markup)
 
-@bot.message_handler(func=lambda m:m.text in ["CE"])
+# ================== SEND PDF ==================
+@bot.message_handler(func=lambda m: m.text in ["CE"])
 def send_pdf(message):
 
-    data=user_data.get(message.chat.id)
+    data = user_data.get(message.chat.id)
 
     if not data:
-        bot.send_message(message.chat.id,"❌ Pehle semester select karo")
+        bot.send_message(message.chat.id,
+                         "❌ Pehle semester select karo")
         return
 
-    sem=data["sem"]
-    branch=message.text
+    sem = data["sem"]
+    branch = message.text
+    file_url = syllabus[sem][branch]
 
-    file_url=syllabus[sem][branch]
-
-    bot.send_document(message.chat.id,file_url,
-                      caption=f"{sem} - {branch} Syllabus")
+    try:
+        bot.send_document(
+            message.chat.id,
+            file_url,
+            caption=f"{sem} - {branch} Syllabus"
+        )
+    except Exception as e:
+        print(e)
+        bot.send_message(message.chat.id,
+                         "⚠️ File send failed.")
 
 # ================== STATS ==================
-@bot.message_handler(func=lambda m:m.text=="📈 Statistics")
+@bot.message_handler(func=lambda m: m.text == "📈 Statistics")
 def stats(message):
 
     bot.send_message(
@@ -244,24 +266,26 @@ def stats(message):
     )
 
 # ================== HELP ==================
-@bot.message_handler(func=lambda m:m.text=="ℹ️ Help")
+@bot.message_handler(func=lambda m: m.text == "ℹ️ Help")
 def help_msg(message):
-    bot.send_message(message.chat.id,"Use 📚 Syllabus")
+    bot.send_message(message.chat.id,
+                     "Use 📚 Syllabus")
 
-# ================== FEEDBACK SYSTEM ==================
-feedback_users=set()
+# ================== FEEDBACK ==================
+feedback_users = set()
 
-@bot.message_handler(func=lambda m:m.text=="⭐ Feedback")
+@bot.message_handler(func=lambda m: m.text == "⭐ Feedback")
 def feedback(message):
     feedback_users.add(message.chat.id)
-    bot.send_message(message.chat.id,"✍️ Send your feedback now.")
+    bot.send_message(message.chat.id,
+                     "✍️ Send your feedback now.")
 
-@bot.message_handler(func=lambda m:m.chat.id in feedback_users)
+@bot.message_handler(func=lambda m: m.chat.id in feedback_users)
 def receive_feedback(message):
 
-    user=message.from_user
+    user = message.from_user
 
-    text=f"""
+    text = f"""
 ⭐ NEW FEEDBACK
 
 👤 {user.first_name}
@@ -271,21 +295,23 @@ def receive_feedback(message):
 💬 {message.text}
 """
 
-    bot.send_message(ADMIN_ID,text)
-    bot.send_message(message.chat.id,"✅ Feedback sent successfully.")
+    bot.send_message(ADMIN_ID, text)
+    bot.send_message(message.chat.id,
+                     "✅ Feedback sent successfully.")
 
     feedback_users.remove(message.chat.id)
 
 # ================== BACK ==================
-@bot.message_handler(func=lambda m:m.text=="🔙 Main Menu")
+@bot.message_handler(func=lambda m: m.text == "🔙 Main Menu")
 def back(message):
     start(message)
 
 # ================== DEFAULT ==================
-@bot.message_handler(func=lambda m:True)
+@bot.message_handler(func=lambda m: True)
 def default(message):
-    bot.send_message(message.chat.id,"Use menu buttons")
+    bot.send_message(message.chat.id,
+                     "Use menu buttons")
 
 # ================== RUN ==================
 print("🚀 Bot Running...")
-bot.infinity_polling(skip_pending=True)
+bot.infinity_polling(skip_pending=True, none_stop=True)

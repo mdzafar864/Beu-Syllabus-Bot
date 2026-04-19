@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+analytics.json
+bot.log
+.env
+venv/

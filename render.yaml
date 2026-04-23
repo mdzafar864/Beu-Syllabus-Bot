@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: beu-syllabus-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_ID
+        sync: false
+      - key: CHANNEL_USERNAME
+        value: "@EngineersPathwayOfficial"
+      - key: YOUTUBE_LINK
+        value: "https://youtube.com/@engineerspathwayofficial"
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    autoDeploy: true
+    healthCheckPath: /health

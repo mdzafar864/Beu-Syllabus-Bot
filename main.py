@@ -1,5 +1,5 @@
 import telebot
-from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, BotCommand
 import os
 import json
 from datetime import datetime, date, timedelta
@@ -8,6 +8,11 @@ from typing import Dict, Set, Optional
 import threading
 import time
 from pathlib import Path
+from functools import wraps
+import re
+import sqlite3
+from contextlib import contextmanager
+import queue
 
 # ================== CONFIGURATION ==================
 BASE_DIR = Path(__file__).parent
@@ -22,10 +27,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Environment variables
 TOKEN = os.getenv("BOT_TOKEN")
-CHANNEL_USERNAME = "@EngineersPathwayOfficial"
-YOUTUBE_LINK = "https://youtube.com/@engineerspathwayofficial"
-ADMIN_ID = 5861904079  # Your Telegram ID
+ADMIN_ID = int(os.getenv("ADMIN_ID", "5861904079"))
+CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME", "@EngineersPathwayOfficial")
+YOUTUBE_LINK = os.getenv("YOUTUBE_LINK", "https://youtube.com/@engineerspathwayofficial")
 
 # ================== SYLLABUS DATABASE ==================
 SYLLABUS = {
@@ -115,23 +121,187 @@ BRANCH_EMOJIS = {
     "IOT": "🌐 IoT"
 }
 
-# ================== HELPER FUNCTIONS ==================
-def get_download_link(drive_url):
-    """Extract download link from Google Drive URL"""
-    try:
-        if "id=" in drive_url:
-            file_id = drive_url.split("id=")[-1]
-        elif "/d/" in drive_url:
-            file_id = drive_url.split("/d/")[1].split("/")[0]
-        else:
-            return drive_url
-        
-        return f"https://drive.google.com/uc?export=download&id={file_id}"
-    except:
-        return drive_url
+# ================== DATABASE SETUP ==================
+class Database:
+    def __init__(self, db_path="bot_data.db"):
+        self.db_path = str(BASE_DIR / db_path)
+        self.init_db()
+    
+    @contextmanager
+    def get_connection(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+    
+    def init_db(self):
+        try:
+            with self.get_connection() as conn:
+                # Users table
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        user_id INTEGER PRIMARY KEY,
+                        username TEXT,
+                        first_name TEXT,
+                        last_name TEXT,
+                        joined_date TIMESTAMP,
+                        last_active TIMESTAMP
+                    )
+                """)
+                # Downloads table
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS downloads (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
+                        semester TEXT,
+                        branch TEXT,
+                        download_time TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users(user_id)
+                    )
+                """)
+                # Feedback table
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS feedback (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
+                        feedback_text TEXT,
+                        feedback_time TIMESTAMP,
+                        status TEXT DEFAULT 'pending'
+                    )
+                """)
+                logger.info("Database initialized successfully")
+        except Exception as e:
+            logger.error(f"Database initialization error: {e}")
+    
+    def add_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None):
+        try:
+            with self.get_connection() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, joined_date, last_active)
+                    VALUES (?, ?, ?, ?, COALESCE((SELECT joined_date FROM users WHERE user_id=?), CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+                """, (user_id, username, first_name, last_name, user_id))
+        except Exception as e:
+            logger.error(f"Error adding user: {e}")
+    
+    def add_download(self, user_id: int, semester: str, branch: str):
+        try:
+            with self.get_connection() as conn:
+                conn.execute("""
+                    INSERT INTO downloads (user_id, semester, branch, download_time)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                """, (user_id, semester, branch))
+                # Update last active
+                conn.execute("""
+                    UPDATE users SET last_active = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                """, (user_id,))
+        except Exception as e:
+            logger.error(f"Error adding download: {e}")
+    
+    def add_feedback(self, user_id: int, feedback_text: str):
+        try:
+            with self.get_connection() as conn:
+                conn.execute("""
+                    INSERT INTO feedback (user_id, feedback_text, feedback_time)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
+                """, (user_id, feedback_text))
+        except Exception as e:
+            logger.error(f"Error adding feedback: {e}")
+    
+    def get_total_users(self) -> int:
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()
+                return result['count'] if result else 0
+        except Exception as e:
+            logger.error(f"Error getting total users: {e}")
+            return 0
+    
+    def get_total_downloads(self) -> int:
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute("SELECT COUNT(*) as count FROM downloads").fetchone()
+                return result['count'] if result else 0
+        except Exception as e:
+            logger.error(f"Error getting total downloads: {e}")
+            return 0
+    
+    def get_today_downloads(self) -> int:
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute("""
+                    SELECT COUNT(*) as count FROM downloads 
+                    WHERE DATE(download_time) = DATE('now')
+                """).fetchone()
+                return result['count'] if result else 0
+        except Exception as e:
+            logger.error(f"Error getting today downloads: {e}")
+            return 0
+    
+    def get_today_active_users(self) -> int:
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute("""
+                    SELECT COUNT(DISTINCT user_id) as count FROM downloads 
+                    WHERE DATE(download_time) = DATE('now')
+                """).fetchone()
+                return result['count'] if result else 0
+        except Exception as e:
+            logger.error(f"Error getting active users: {e}")
+            return 0
 
-# ================== BOT INITIALIZATION ==================
-bot = telebot.TeleBot(TOKEN)
+# ================== RATE LIMITER ==================
+class RateLimiter:
+    def __init__(self, max_calls=5, time_window=60):
+        self.max_calls = max_calls
+        self.time_window = time_window
+        self.user_calls = {}
+        self.lock = threading.Lock()
+    
+    def is_allowed(self, user_id: int) -> bool:
+        with self.lock:
+            now = time.time()
+            if user_id not in self.user_calls:
+                self.user_calls[user_id] = []
+            
+            # Clean old calls
+            self.user_calls[user_id] = [t for t in self.user_calls[user_id] if now - t < self.time_window]
+            
+            if len(self.user_calls[user_id]) >= self.max_calls:
+                return False
+            
+            self.user_calls[user_id].append(now)
+            return True
+
+# ================== CACHE MANAGER ==================
+class CacheManager:
+    def __init__(self, ttl_seconds=300):
+        self.cache = {}
+        self.ttl = ttl_seconds
+        self.lock = threading.Lock()
+    
+    def get(self, key):
+        with self.lock:
+            if key in self.cache:
+                data, timestamp = self.cache[key]
+                if time.time() - timestamp < self.ttl:
+                    return data
+                del self.cache[key]
+            return None
+    
+    def set(self, key, value):
+        with self.lock:
+            self.cache[key] = (value, time.time())
+    
+    def clear(self):
+        with self.lock:
+            self.cache.clear()
 
 # ================== USER DATA MANAGEMENT ==================
 class UserSession:
@@ -153,8 +323,6 @@ class UserSession:
         with self.lock:
             if user_id in self.data:
                 del self.data[user_id]
-
-user_session = UserSession()
 
 # ================== ANALYTICS SYSTEM ==================
 class Analytics:
@@ -216,7 +384,124 @@ class Analytics:
         self.save()
         logger.info("Daily analytics reset completed")
 
+# ================== BROADCAST QUEUE ==================
+class BroadcastQueue:
+    def __init__(self):
+        self.queue = queue.Queue()
+        self.is_processing = False
+        self.lock = threading.Lock()
+    
+    def add_broadcast(self, message, admin_id):
+        self.queue.put((message, admin_id))
+        if not self.is_processing:
+            self.process_queue()
+    
+    def process_queue(self):
+        with self.lock:
+            if self.is_processing:
+                return
+            self.is_processing = True
+        
+        def worker():
+            while not self.queue.empty():
+                try:
+                    msg, admin_id = self.queue.get()
+                    # Process will be handled by the broadcast function
+                    self.queue.task_done()
+                except Exception as e:
+                    logger.error(f"Broadcast queue error: {e}")
+            with self.lock:
+                self.is_processing = False
+        
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
+
+# ================== INITIALIZATION ==================
+bot = telebot.TeleBot(TOKEN)
+db = Database()
+rate_limiter = RateLimiter()
+cache = CacheManager()
+user_session = UserSession()
 analytics = Analytics()
+broadcast_queue = BroadcastQueue()
+
+# ================== HELPER FUNCTIONS ==================
+def get_download_link(drive_url: str) -> str:
+    """Extract download link from Google Drive URL with better error handling"""
+    try:
+        # Handle different Google Drive URL formats
+        patterns = [
+            (r'id=([^&]+)', lambda m: m.group(1)),
+            (r'/d/([^/]+)', lambda m: m.group(1)),
+            (r'file/d/([^/]+)', lambda m: m.group(1)),
+            (r'uc\?export=download&id=([^&]+)', lambda m: m.group(1))
+        ]
+        
+        for pattern, extractor in patterns:
+            match = re.search(pattern, drive_url)
+            if match:
+                file_id = extractor(match)
+                return f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+        return drive_url
+    except Exception as e:
+        logger.error(f"Error parsing drive URL: {e}")
+        return drive_url
+
+def validate_branch(branch: str) -> bool:
+    """Validate if branch exists"""
+    return branch in BRANCH_EMOJIS
+
+def validate_semester(semester: str, branch: str) -> bool:
+    """Validate if semester exists for branch"""
+    return semester in SYLLABUS and branch in SYLLABUS.get(semester, {})
+
+def is_member(user_id: int) -> bool:
+    """Check if user is a member of the channel"""
+    try:
+        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ["member", "administrator", "creator"]
+    except Exception as e:
+        logger.error(f"Membership check failed for {user_id}: {e}")
+        return False
+
+def send_join_required(message):
+    """Send force join message"""
+    try:
+        markup = InlineKeyboardMarkup(row_width=1)
+        markup.add(
+            InlineKeyboardButton("📢 Join Telegram Channel", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"),
+            InlineKeyboardButton("▶️ Subscribe YouTube", url=YOUTUBE_LINK),
+            InlineKeyboardButton("✅ I've Joined & Subscribed", callback_data="check_join")
+        )
+        
+        bot.send_message(
+            message.chat.id,
+            "🔒 *Access Restricted*\n\n"
+            "To access the syllabus and all features, you must join our community:\n\n"
+            "✅ Join Telegram Channel\n"
+            "✅ Subscribe to YouTube\n\n"
+            "After joining, click the button below to verify access.",
+            reply_markup=markup,
+            parse_mode='Markdown'
+        )
+    except Exception as e:
+        logger.error(f"Error sending join required message: {e}")
+
+def setup_bot_commands():
+    """Setup bot commands for Telegram menu"""
+    try:
+        commands = [
+            BotCommand("start", "Start the bot"),
+            BotCommand("menu", "Show main menu"),
+            BotCommand("stats", "Show bot statistics"),
+            BotCommand("admin", "Admin panel (admin only)"),
+            BotCommand("broadcast", "Send broadcast message (admin only)")
+        ]
+        bot.set_my_commands(commands)
+        logger.info("Bot commands setup completed")
+    except Exception as e:
+        logger.error(f"Error setting up commands: {e}")
 
 # ================== UI COMPONENTS ==================
 class MenuBuilder:
@@ -242,40 +527,6 @@ class MenuBuilder:
         markup.add(*buttons)
         markup.add("🔙 Back to Branches", "🏠 Main Menu")
         return markup
-    
-    @staticmethod
-    def force_join_markup() -> InlineKeyboardMarkup:
-        markup = InlineKeyboardMarkup(row_width=1)
-        markup.add(
-            InlineKeyboardButton("📢 Join Telegram Channel", url="https://t.me/EngineersPathwayOfficial"),
-            InlineKeyboardButton("▶️ Subscribe YouTube", url=YOUTUBE_LINK),
-            InlineKeyboardButton("✅ I've Joined & Subscribed", callback_data="check_join")
-        )
-        return markup
-
-# ================== FORCE JOIN HANDLER ==================
-def is_member(user_id: int) -> bool:
-    try:
-        member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except Exception as e:
-        logger.error(f"Membership check failed for {user_id}: {e}")
-        return False
-
-def send_join_required(message):
-    try:
-        bot.send_message(
-            message.chat.id,
-            "🔒 *Access Restricted*\n\n"
-            "To access the syllabus and all features, you must join our community:\n\n"
-            "✅ Join Telegram Channel\n"
-            "✅ Subscribe to YouTube\n\n"
-            "After joining, click the button below to verify access.",
-            reply_markup=MenuBuilder.force_join_markup(),
-            parse_mode='Markdown'
-        )
-    except Exception as e:
-        logger.error(f"Error sending join required message: {e}")
 
 # ================== COMMAND HANDLERS ==================
 @bot.callback_query_handler(func=lambda call: call.data == "check_join")
@@ -283,6 +534,15 @@ def verify_join(call):
     try:
         if is_member(call.from_user.id):
             bot.answer_callback_query(call.id, "✅ Access Granted! Welcome aboard!")
+            
+            # Add user to database
+            db.add_user(
+                call.from_user.id,
+                call.from_user.username,
+                call.from_user.first_name,
+                call.from_user.last_name
+            )
+            
             bot.send_message(
                 call.message.chat.id,
                 "🎉 *Access Verified!* 🎉\n\n"
@@ -307,6 +567,19 @@ def start(message):
         if not is_member(message.chat.id):
             send_join_required(message)
             return
+        
+        # Rate limiting check
+        if not rate_limiter.is_allowed(message.chat.id):
+            bot.send_message(message.chat.id, "⏳ Please wait before making more requests.")
+            return
+        
+        # Add/update user in database
+        db.add_user(
+            message.chat.id,
+            message.from_user.username,
+            message.from_user.first_name,
+            message.from_user.last_name
+        )
         
         analytics.track_user(message.chat.id, "start")
         user_session.clear(message.chat.id)
@@ -333,12 +606,17 @@ def start(message):
         )
     except Exception as e:
         logger.error(f"Error in start: {e}")
+        bot.send_message(message.chat.id, "⚠️ An error occurred. Please try again later.")
 
 @bot.message_handler(func=lambda m: m.text == "📚 Syllabus")
 def show_branches_first(message):
     try:
         if not is_member(message.chat.id):
             send_join_required(message)
+            return
+        
+        if not rate_limiter.is_allowed(message.chat.id):
+            bot.send_message(message.chat.id, "⏳ Please wait before making more requests.")
             return
         
         user_session.set(message.chat.id, "step", "waiting_for_branch")
@@ -372,19 +650,24 @@ def branch_selected_first(message):
                 selected_branch = b
                 break
         
-        if not selected_branch:
-            bot.send_message(message.chat.id, "❌ Invalid branch!")
+        if not selected_branch or not validate_branch(selected_branch):
+            bot.send_message(message.chat.id, "❌ Invalid branch selection!")
             return
         
         # Store selected branch in session
         user_session.set(message.chat.id, "selected_branch", selected_branch)
         user_session.set(message.chat.id, "step", "waiting_for_semester")
         
-        # Find which semesters have this branch
-        available_semesters = []
-        for sem, branches in SYLLABUS.items():
-            if selected_branch in branches:
-                available_semesters.append(sem)
+        # Find which semesters have this branch (with caching)
+        cache_key = f"semesters_{selected_branch}"
+        available_semesters = cache.get(cache_key)
+        
+        if available_semesters is None:
+            available_semesters = []
+            for sem, branches in SYLLABUS.items():
+                if selected_branch in branches:
+                    available_semesters.append(sem)
+            cache.set(cache_key, available_semesters)
         
         if not available_semesters:
             bot.send_message(
@@ -410,7 +693,7 @@ def branch_selected_first(message):
         logger.error(f"Error in branch_selected_first: {e}")
         bot.send_message(
             message.chat.id,
-            "⚠️ Error! Please try again.",
+            "⚠️ An error occurred. Please try again.",
             reply_markup=MenuBuilder.main_menu()
         )
 
@@ -419,6 +702,10 @@ def semester_after_branch(message):
     try:
         if not is_member(message.chat.id):
             send_join_required(message)
+            return
+        
+        if not rate_limiter.is_allowed(message.chat.id):
+            bot.send_message(message.chat.id, "⏳ Please wait before making more requests.")
             return
         
         semester = message.text.replace("📖 ", "")
@@ -434,20 +721,28 @@ def semester_after_branch(message):
         
         branch = session["selected_branch"]
         
-        # Check if syllabus exists for this branch and semester
-        if semester not in SYLLABUS or branch not in SYLLABUS[semester]:
+        # Validate semester and branch
+        if not validate_semester(semester, branch):
             bot.send_message(
                 message.chat.id,
                 f"❌ {BRANCH_EMOJIS.get(branch, branch)} branch का {semester} semester का syllabus उपलब्ध नहीं है।"
             )
             return
         
-        original_url = SYLLABUS[semester][branch]
-        download_url = get_download_link(original_url)
+        # Get download URL (with caching)
+        cache_key = f"download_url_{semester}_{branch}"
+        download_url = cache.get(cache_key)
         
+        if download_url is None:
+            original_url = SYLLABUS[semester][branch]
+            download_url = get_download_link(original_url)
+            cache.set(cache_key, download_url)
+        
+        # Track download
         analytics.track_download(semester, branch)
+        db.add_download(message.chat.id, semester, branch)
         
-        # Create download markup - ONLY DOWNLOAD AND SHARE BUTTONS
+        # Create download markup
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
             InlineKeyboardButton("⬇️ Download PDF", url=download_url),
@@ -456,31 +751,35 @@ def semester_after_branch(message):
         
         bot.send_chat_action(message.chat.id, 'typing')
         
+        # Get download statistics
+        today_downloads = db.get_today_downloads()
+        
         try:
             bot.send_document(
                 message.chat.id,
                 download_url,
                 caption=f"📚 *{semester} Semester - {BRANCH_EMOJIS.get(branch, branch)} Syllabus*\n\n"
                        f"📅 *Requested:* {datetime.now().strftime('%d %b %Y, %I:%M %p')}\n"
-                       f"📊 *Downloads Today:* {analytics.daily_downloads.get(f'{semester}_{branch}', 0)}",
+                       f"📊 *Total Downloads Today:* {today_downloads}",
                 reply_markup=markup,
                 parse_mode='Markdown'
             )
             logger.info(f"Syllabus sent: {semester} - {branch} to user {message.chat.id}")
         except Exception as doc_error:
             logger.error(f"Document send failed: {doc_error}")
+            # Fallback to sending just the link
             bot.send_message(
                 message.chat.id,
                 f"📚 *{semester} Semester - {BRANCH_EMOJIS.get(branch, branch)} Syllabus*\n\n"
-                f"✅ Syllabus ready!\n\n"
-                f"📊 Downloads Today: {analytics.daily_downloads.get(f'{semester}_{branch}', 0)}",
+                f"✅ Syllabus ready! [Click here to download]({download_url})\n\n"
+                f"📊 Total Downloads Today: {today_downloads}",
                 reply_markup=markup,
                 parse_mode='Markdown'
             )
             
     except Exception as e:
         logger.error(f"Error in semester_after_branch: {e}")
-        bot.send_message(message.chat.id, "⚠️ Error! Please try again.")
+        bot.send_message(message.chat.id, "⚠️ An error occurred. Please try again later.")
 
 @bot.message_handler(func=lambda m: m.text == "🔙 Back to Branches")
 def back_to_branches(message):
@@ -524,14 +823,22 @@ def show_stats(message):
             send_join_required(message)
             return
         
+        # Get stats from database
+        total_users = db.get_total_users()
+        today_active = db.get_today_active_users()
+        total_downloads = db.get_total_downloads()
+        today_downloads = db.get_today_downloads()
+        
         stats_text = (
             "📊 *Bot Statistics*\n\n"
-            f"👥 *Total Users:* {len(analytics.total_users):,}\n"
-            f"📅 *Active Today:* {len(analytics.daily_active):,}\n"
-            f"📚 *Total Downloads:* {sum(analytics.daily_downloads.values()):,}\n\n"
+            f"👥 *Total Users:* {total_users:,}\n"
+            f"📅 *Active Today:* {today_active:,}\n"
+            f"📚 *Total Downloads:* {total_downloads:,}\n"
+            f"📊 *Downloads Today:* {today_downloads:,}\n\n"
             "📈 *Popular Downloads:*\n"
         )
         
+        # Get top downloads from analytics
         top_downloads = sorted(analytics.daily_downloads.items(), key=lambda x: x[1], reverse=True)[:5]
         if top_downloads:
             for sem_branch, count in top_downloads:
@@ -547,6 +854,7 @@ def show_stats(message):
         bot.send_message(message.chat.id, stats_text, parse_mode='Markdown')
     except Exception as e:
         logger.error(f"Error in show_stats: {e}")
+        bot.send_message(message.chat.id, "⚠️ Unable to fetch statistics.")
 
 @bot.message_handler(func=lambda m: m.text == "ℹ️ Help")
 def show_help(message):
@@ -566,17 +874,18 @@ def show_help(message):
             "*Commands:*\n"
             "/start - Restart bot\n"
             "/menu - Show main menu\n"
+            "/stats - View bot statistics\n\n"
             
             "*Need Support?*\n"
             "Join our Telegram channel for updates!\n\n"
             
-            "📢 *Channel:* @EngineersPathwayOfficial\n"
-            "▶️ *YouTube:* Engineers Pathway Official"
+            f"📢 *Channel:* {CHANNEL_USERNAME}\n"
+            f"▶️ *YouTube:* Engineers Pathway Official"
         )
         
         markup = InlineKeyboardMarkup()
         markup.add(
-            InlineKeyboardButton("📢 Channel", url="https://t.me/EngineersPathwayOfficial"),
+            InlineKeyboardButton("📢 Channel", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}"),
             InlineKeyboardButton("▶️ YouTube", url=YOUTUBE_LINK)
         )
         
@@ -612,6 +921,9 @@ def get_feedback(message):
 def process_feedback(message):
     try:
         feedback_content = message.text
+        
+        # Save to database
+        db.add_feedback(message.chat.id, feedback_content)
         
         first_name = message.from_user.first_name or "N/A"
         last_name = message.from_user.last_name or "N/A"
@@ -694,12 +1006,20 @@ def admin_panel(message):
             bot.send_message(message.chat.id, "⛔ Unauthorized access!")
             return
         
+        # Get stats from database
+        total_users = db.get_total_users()
+        today_active = db.get_today_active_users()
+        total_downloads = db.get_total_downloads()
+        today_downloads = db.get_today_downloads()
+        
         admin_text = (
             "👑 *Admin Panel*\n\n"
-            f"📊 *Total Users:* {len(analytics.total_users)}\n"
-            f"📅 *Active Today:* {len(analytics.daily_active)}\n"
-            f"📚 *Total Downloads:* {sum(analytics.daily_downloads.values())}\n\n"
-            "📈 *Top Downloads:*\n"
+            f"📊 *Database Statistics:*\n"
+            f"├ Total Users: {total_users}\n"
+            f"├ Active Today: {today_active}\n"
+            f"├ Total Downloads: {total_downloads}\n"
+            f"└ Downloads Today: {today_downloads}\n\n"
+            f"📈 *Analytics Top Downloads:*\n"
         )
         
         top_downloads = sorted(analytics.daily_downloads.items(), key=lambda x: x[1], reverse=True)[:10]
@@ -709,14 +1029,15 @@ def admin_panel(message):
         markup = InlineKeyboardMarkup()
         markup.add(
             InlineKeyboardButton("📊 Full Stats", callback_data="full_stats"),
-            InlineKeyboardButton("💾 Save Data", callback_data="save_data")
+            InlineKeyboardButton("💾 Save Data", callback_data="save_data"),
+            InlineKeyboardButton("📢 Broadcast", callback_data="broadcast_menu")
         )
         
         bot.send_message(message.chat.id, admin_text, parse_mode='Markdown', reply_markup=markup)
     except Exception as e:
         logger.error(f"Error in admin_panel: {e}")
 
-@bot.callback_query_handler(func=lambda call: call.data in ["full_stats", "save_data"])
+@bot.callback_query_handler(func=lambda call: call.data in ["full_stats", "save_data", "broadcast_menu"])
 def admin_callbacks(call):
     try:
         if call.from_user.id != ADMIN_ID:
@@ -724,9 +1045,9 @@ def admin_callbacks(call):
             return
         
         if call.data == "full_stats":
-            stats_file = analytics.filename
-            if os.path.exists(stats_file):
-                with open(stats_file, 'rb') as f:
+            # Send analytics file
+            if os.path.exists(analytics.filename):
+                with open(analytics.filename, 'rb') as f:
                     bot.send_document(call.message.chat.id, f, caption="📊 Full analytics data")
             else:
                 bot.send_message(call.message.chat.id, "No analytics data found!")
@@ -734,43 +1055,106 @@ def admin_callbacks(call):
         elif call.data == "save_data":
             analytics.save()
             bot.answer_callback_query(call.id, "✅ Data saved successfully!")
+        
+        elif call.data == "broadcast_menu":
+            bot.send_message(call.message.chat.id, "📢 Send your broadcast message below:")
+            bot.register_next_step_handler(call.message, process_broadcast)
+            bot.answer_callback_query(call.id)
+    
     except Exception as e:
         logger.error(f"Error in admin_callbacks: {e}")
 
-@bot.message_handler(commands=['broadcast'])
-def broadcast_message(message):
+def process_broadcast(message):
+    """Process broadcast message from admin"""
     try:
         if message.from_user.id != ADMIN_ID:
-            bot.send_message(message.chat.id, "⛔ Unauthorized access!")
             return
         
-        msg = message.text.replace('/broadcast', '').strip()
-        if not msg:
-            bot.send_message(message.chat.id, "⚠️ Usage: /broadcast <message>")
+        broadcast_msg = message.text
+        
+        # Confirm broadcast
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton("✅ Yes, Send", callback_data=f"confirm_broadcast_{len(broadcast_msg)}"),
+            InlineKeyboardButton("❌ Cancel", callback_data="cancel_broadcast")
+        )
+        
+        bot.send_message(
+            message.chat.id,
+            f"📢 *Broadcast Preview:*\n\n{broadcast_msg}\n\nSend to all {db.get_total_users()} users?",
+            parse_mode='Markdown',
+            reply_markup=markup
+        )
+        
+        # Store broadcast message in session
+        user_session.set(message.chat.id, "broadcast_msg", broadcast_msg)
+        
+    except Exception as e:
+        logger.error(f"Error in process_broadcast: {e}")
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirm_broadcast_") or call.data == "cancel_broadcast")
+def confirm_broadcast(call):
+    try:
+        if call.from_user.id != ADMIN_ID:
+            bot.answer_callback_query(call.id, "⛔ Unauthorized!", show_alert=True)
             return
+        
+        if call.data == "cancel_broadcast":
+            bot.edit_message_text("❌ Broadcast cancelled.", call.message.chat.id, call.message.message_id)
+            bot.answer_callback_query(call.id)
+            return
+        
+        # Get broadcast message from session
+        session = user_session.get(call.from_user.id)
+        if not session or "broadcast_msg" not in session:
+            bot.send_message(call.message.chat.id, "❌ No broadcast message found!")
+            return
+        
+        broadcast_msg = session["broadcast_msg"]
+        
+        # Send broadcast
+        status_msg = bot.edit_message_text(
+            "📤 Sending broadcast... Please wait.",
+            call.message.chat.id,
+            call.message.message_id
+        )
         
         success = 0
         failed = 0
         
-        status_msg = bot.send_message(message.chat.id, "📤 Sending broadcast...")
+        # Get all users from database
+        with db.get_connection() as conn:
+            users = conn.execute("SELECT user_id FROM users").fetchall()
         
-        for user_id in list(analytics.total_users):
+        for user in users:
             try:
-                bot.send_message(user_id, f"📢 *Announcement*\n\n{msg}", parse_mode='Markdown')
+                bot.send_message(
+                    user['user_id'],
+                    f"📢 *Announcement*\n\n{broadcast_msg}",
+                    parse_mode='Markdown'
+                )
                 success += 1
-            except:
+                time.sleep(0.05)  # Small delay to avoid flooding
+            except Exception as e:
                 failed += 1
-            time.sleep(0.1)
+                logger.error(f"Broadcast failed to {user['user_id']}: {e}")
         
         bot.edit_message_text(
             f"✅ Broadcast completed!\n\n"
             f"✓ Success: {success}\n"
-            f"✗ Failed: {failed}",
-            message.chat.id,
+            f"✗ Failed: {failed}\n"
+            f"📊 Total users: {len(users)}",
+            call.message.chat.id,
             status_msg.message_id
         )
+        
+        # Clear session
+        user_session.set(call.from_user.id, "broadcast_msg", None)
+        bot.answer_callback_query(call.id)
+        
     except Exception as e:
-        logger.error(f"Error in broadcast_message: {e}")
+        logger.error(f"Error in confirm_broadcast: {e}")
+        bot.send_message(call.message.chat.id, "⚠️ Error during broadcast!")
 
 @bot.message_handler(commands=['stats'])
 def user_stats(message):
@@ -779,11 +1163,17 @@ def user_stats(message):
             bot.send_message(message.chat.id, "⛔ Unauthorized access!")
             return
         
+        # Get detailed stats
+        total_users = db.get_total_users()
+        total_downloads = db.get_total_downloads()
+        today_downloads = db.get_today_downloads()
+        
         stats_text = (
             "📊 *Detailed Statistics*\n\n"
-            f"👥 *Total Users:* {len(analytics.total_users)}\n"
-            f"📅 *Active Today:* {len(analytics.daily_active)}\n"
-            f"📚 *Total Downloads:* {sum(analytics.daily_downloads.values())}\n\n"
+            f"👥 *Total Users:* {total_users}\n"
+            f"📅 *Active Today:* {db.get_today_active_users()}\n"
+            f"📚 *Total Downloads:* {total_downloads}\n"
+            f"📊 *Downloads Today:* {today_downloads}\n\n"
             f"📈 *Command Usage:*\n"
         )
         
@@ -796,33 +1186,43 @@ def user_stats(message):
 
 # ================== DAILY RESET SCHEDULER ==================
 def daily_reset():
+    """Reset daily analytics at midnight"""
     while True:
         try:
             now = datetime.now()
+            # Calculate next midnight
             next_reset = datetime(now.year, now.month, now.day) + timedelta(days=1)
             sleep_seconds = (next_reset - now).total_seconds()
+            
             if sleep_seconds > 0:
                 time.sleep(sleep_seconds)
                 analytics.reset_daily()
+                logger.info("Daily analytics reset completed")
         except Exception as e:
             logger.error(f"Error in daily_reset: {e}")
-            time.sleep(3600)
+            time.sleep(3600)  # Wait an hour before retrying
 
-# ================== HEALTH CHECK FOR RAILWAY ==================
+# ================== HEALTH CHECK FOR RENDER ==================
 try:
-    from flask import Flask, jsonify
+    from flask import Flask, jsonify, request
     flask_app = Flask(__name__)
     
     @flask_app.route('/')
     def health():
-        return "✅ BEU Syllabus Bot is running!", 200
+        return {
+            "status": "healthy",
+            "bot": "BEU Syllabus Bot",
+            "timestamp": datetime.now().isoformat()
+        }, 200
     
     @flask_app.route('/health')
     def health_check():
         return jsonify({
             "status": "healthy",
-            "users": len(analytics.total_users),
-            "downloads": sum(analytics.daily_downloads.values())
+            "users": db.get_total_users(),
+            "downloads": db.get_total_downloads(),
+            "today_downloads": db.get_today_downloads(),
+            "timestamp": datetime.now().isoformat()
         }), 200
     
     def run_web():
@@ -831,12 +1231,13 @@ try:
     
     web_thread = threading.Thread(target=run_web, daemon=True)
     web_thread.start()
-    logger.info("✅ Health check server started")
+    logger.info("✅ Health check server started on port 8080")
 except ImportError:
     logger.warning("⚠️ Flask not installed. Install with: pip install flask")
 
 # ================== AUTO RESTART ON ERROR ==================
 def run_bot():
+    """Run bot with auto-restart on crash"""
     while True:
         try:
             logger.info("🚀 Starting bot...")
@@ -848,23 +1249,36 @@ def run_bot():
 
 # ================== BOT STARTUP ==================
 if __name__ == "__main__":
-    logger.info("🚀 BEU Syllabus Bot Starting on Railway!")
+    logger.info("🚀 BEU Syllabus Bot Starting on Render!")
     logger.info(f"Base Directory: {BASE_DIR}")
     
+    # Validate required environment variables
     if not TOKEN:
         logger.error("❌ BOT_TOKEN environment variable not set!")
         raise ValueError("BOT_TOKEN is required")
     
+    if not CHANNEL_USERNAME:
+        logger.error("❌ CHANNEL_USERNAME environment variable not set!")
+        raise ValueError("CHANNEL_USERNAME is required")
+    
     try:
+        # Test bot connection
         bot_info = bot.get_me()
         logger.info(f"✅ Bot Username: @{bot_info.username}")
         logger.info(f"✅ Bot ID: {bot_info.id}")
+        
+        # Setup bot commands
+        setup_bot_commands()
+        
     except Exception as e:
         logger.error(f"❌ Failed to get bot info: {e}")
         raise
     
+    # Display configuration
     logger.info(f"📚 Total Semesters: {len(SYLLABUS)}")
     logger.info(f"👑 Admin ID: {ADMIN_ID}")
+    logger.info(f"📢 Channel: {CHANNEL_USERNAME}")
+    logger.info(f"▶️ YouTube: {YOUTUBE_LINK}")
     
     # Start daily reset thread
     try:

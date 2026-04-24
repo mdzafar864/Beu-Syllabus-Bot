@@ -808,7 +808,7 @@ def daily_reset():
             logger.error(f"Error in daily_reset: {e}")
             time.sleep(3600)
 
-# ================== HEALTH CHECK FOR RENDER ==================
+# ================== HEALTH CHECK FOR RAILWAY ==================
 try:
     from flask import Flask, jsonify
     flask_app = Flask(__name__)
@@ -825,17 +825,13 @@ try:
             "downloads": sum(analytics.daily_downloads.values())
         }), 200
     
-    @flask_app.route('/render-health')
-    def render_health():
-        return "OK", 200
-    
     def run_web():
-        port = int(os.environ.get('PORT', 10000))
+        port = int(os.environ.get('PORT', 8080))
         flask_app.run(host='0.0.0.0', port=port, debug=False)
     
     web_thread = threading.Thread(target=run_web, daemon=True)
     web_thread.start()
-    logger.info("✅ Health check server started for Render")
+    logger.info("✅ Health check server started")
 except ImportError:
     logger.warning("⚠️ Flask not installed. Install with: pip install flask")
 
@@ -843,7 +839,7 @@ except ImportError:
 def run_bot():
     while True:
         try:
-            logger.info("🚀 Starting bot on Render...")
+            logger.info("🚀 Starting bot...")
             bot.infinity_polling(timeout=30, long_polling_timeout=30)
         except Exception as e:
             logger.error(f"Bot crashed: {e}")
@@ -852,7 +848,7 @@ def run_bot():
 
 # ================== BOT STARTUP ==================
 if __name__ == "__main__":
-    logger.info("🚀 BEU Syllabus Bot Starting on Render!")
+    logger.info("🚀 BEU Syllabus Bot Starting on Railway!")
     logger.info(f"Base Directory: {BASE_DIR}")
     
     if not TOKEN:

@@ -3,14 +3,12 @@ services:
     name: beu-syllabus-bot
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: python bot.py
     envVars:
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_ID
         value: 5861904079
-      - key: USE_WEBHOOK
-        value: false
       - key: PYTHON_VERSION
         value: 3.11.0
     healthCheckPath: /health

@@ -571,15 +571,9 @@ def show_help(message):
 
         )
         
-        markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton("👨‍💻 Click Here", url="https://www.linkedin.com/in/mdzafar864")
-        )
-        
         bot.send_message(
             message.chat.id,
             help_text,
-            reply_markup=markup,
             parse_mode='Markdown'
         )
     except Exception as e:

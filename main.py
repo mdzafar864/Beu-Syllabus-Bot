@@ -565,7 +565,7 @@ def show_help(message):
             
             "*Commands:*\n"
             "/start - Restart bot\n"
-            "/menu - Show main menu\n"
+            "/menu - Show main menu\n\n"
             
             "👨‍💻 *Developer Contact:* [Click Here](https://www.linkedin.com/in/mdzafar864)"
 

@@ -570,12 +570,10 @@ def show_help(message):
             "*Need Support?*\n"
             "Join our Telegram channel for updates!\n\n"
             
-            "👨‍💻 *Developer Contact:*\n"
-            "Md Zafar\n"
-            "🔗 *LinkedIn:* https://www.linkedin.com/in/mdzafar864\n\n"
-            
             "📢 *Channel:* @EngineersPathwayOfficial\n"
-            "▶️ *YouTube:* Engineers Pathway Official"
+            "▶️ *YouTube:* Engineers Pathway Official\n"
+            "👨‍💻 *Developer Contact:* [Click Here](https://www.linkedin.com/in/mdzafar864)"
+
         )
         
         markup = InlineKeyboardMarkup()
@@ -584,7 +582,7 @@ def show_help(message):
             InlineKeyboardButton("▶️ YouTube", url=YOUTUBE_LINK)
         )
         markup.add(
-            InlineKeyboardButton("👨‍💻 Developer LinkedIn", url="https://www.linkedin.com/in/mdzafar864")
+            InlineKeyboardButton("👨‍💻 Click Here", url="https://www.linkedin.com/in/mdzafar864")
         )
         
         bot.send_message(

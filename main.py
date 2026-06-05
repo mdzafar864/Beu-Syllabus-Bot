@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("BOT_TOKEN")
 CHANNEL_USERNAME = "@EngineersPathwayOfficial"
-YOUTUBE_LINK = "https://youtube.com/@engineerspathwayofficial"
 ADMIN_ID = 5861904079  # Your Telegram ID
 
 # ================== SYLLABUS DATABASE ==================
@@ -248,8 +247,7 @@ class MenuBuilder:
         markup = InlineKeyboardMarkup(row_width=1)
         markup.add(
             InlineKeyboardButton("📢 Join Telegram Channel", url="https://t.me/EngineersPathwayOfficial"),
-            InlineKeyboardButton("▶️ Subscribe YouTube", url=YOUTUBE_LINK),
-            InlineKeyboardButton("✅ I've Joined & Subscribed", callback_data="check_join")
+            InlineKeyboardButton("✅ I've Joined", callback_data="check_join")
         )
         return markup
 
@@ -267,9 +265,8 @@ def send_join_required(message):
         bot.send_message(
             message.chat.id,
             "🔒 *Access Restricted*\n\n"
-            "To access the syllabus and all features, you must join our community:\n\n"
-            "✅ Join Telegram Channel\n"
-            "✅ Subscribe to YouTube\n\n"
+            "To access the syllabus and all features, you must join our Telegram channel:\n\n"
+            "✅ Join Telegram Channel\n\n"
             "After joining, click the button below to verify access.",
             reply_markup=MenuBuilder.force_join_markup(),
             parse_mode='Markdown'
@@ -295,7 +292,7 @@ def verify_join(call):
         else:
             bot.answer_callback_query(
                 call.id, 
-                "❌ Please join the Telegram channel and subscribe to YouTube first!", 
+                "❌ Please join the Telegram channel first!", 
                 show_alert=True
             )
     except Exception as e:
@@ -567,7 +564,7 @@ def show_help(message):
             "/start - Restart bot\n"
             "/menu - Show main menu\n\n"
             
-            "👨‍💻 *Developer Contact:* [Click Here](https://www.linkedin.com/in/mdzafar864)"
+            "👨‍💻 *Contact Developer:* [Click Here](https://www.linkedin.com/in/mdzafar864)"
 
         )
         

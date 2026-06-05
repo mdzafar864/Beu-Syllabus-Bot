@@ -795,7 +795,7 @@ def daily_reset():
             logger.error(f"Error in daily_reset: {e}")
             time.sleep(3600)
 
-# ================== HEALTH CHECK FOR RAILWAY ==================
+# ================== HEALTH CHECK FOR RENDER ==================
 try:
     from flask import Flask, jsonify
     flask_app = Flask(__name__)

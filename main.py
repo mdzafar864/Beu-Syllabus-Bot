@@ -159,205 +159,62 @@ user_session = UserSession()
 # ================== ANALYTICS SYSTEM ==================
 class Analytics:
     def __init__(self, filename: str = "analytics.json"):
-        self.base_filename = filename
-
-        # Primary save location:
-        # 1) ANALYTICS_FILE direct path
-        # 2) DATA_DIR folder
-        # 3) /data folder if available (Railway/Render persistent volume)
-        # 4) bot file folder
-        analytics_file = os.getenv("ANALYTICS_FILE")
-        data_dir = os.getenv("DATA_DIR")
-
-        if analytics_file:
-            self.filename = str(Path(analytics_file))
-        elif data_dir:
-            Path(data_dir).mkdir(parents=True, exist_ok=True)
-            self.filename = str(Path(data_dir) / filename)
-        elif Path("/data").exists():
-            self.filename = str(Path("/data") / filename)
-        else:
-            self.filename = str(BASE_DIR / filename)
-
-        self.backup_filename = self.filename + ".bak"
-
+        self.filename = str(BASE_DIR / filename)
         self.total_users: Set[int] = set()
         self.daily_active: Set[int] = set()
         self.command_stats: Dict[str, int] = {}
         self.daily_downloads: Dict[str, int] = {}
-        self.last_reset = str(date.today())
         self.lock = threading.Lock()
         self.load()
-
-    def _candidate_files(self):
-        candidates = []
-
-        analytics_file = os.getenv("ANALYTICS_FILE")
-        data_dir = os.getenv("DATA_DIR")
-
-        if analytics_file:
-            candidates.append(Path(analytics_file))
-
-        if data_dir:
-            candidates.append(Path(data_dir) / self.base_filename)
-
-        if Path("/data").exists():
-            candidates.append(Path("/data") / self.base_filename)
-
-        candidates.append(BASE_DIR / self.base_filename)
-
-        all_candidates = []
-        for path in candidates:
-            all_candidates.append(path)
-            all_candidates.append(Path(str(path) + ".bak"))
-
-        unique = []
-        seen = set()
-        for path in all_candidates:
-            path_str = str(path)
-            if path_str not in seen:
-                unique.append(path)
-                seen.add(path_str)
-
-        return unique
-
-    def _read_file_data(self, path: Path):
-        try:
-            if not path.exists() or path.stat().st_size == 0:
-                return None
-
-            with open(path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-
-            if not isinstance(data, dict):
-                return None
-
-            return data
-
-        except Exception as e:
-            logger.error(f"Error reading analytics file {path}: {e}")
-            return None
-
+    
     def load(self):
         try:
-            best_data = None
-            best_path = None
-            best_user_count = -1
-
-            # Sab possible analytics/backup files me se jisme sabse zyada total_users honge, wahi load hoga
-            for path in self._candidate_files():
-                data = self._read_file_data(path)
-                if data is None:
-                    continue
-
-                try:
-                    user_count = len(set(map(int, data.get('total_users', []))))
-                except Exception:
-                    user_count = 0
-
-                if user_count > best_user_count:
-                    best_user_count = user_count
-                    best_data = data
-                    best_path = path
-
-            if best_data is None:
-                logger.info("Analytics file not found. New analytics will be created on first activity.")
-                return
-
-            with self.lock:
-                self.total_users = set(map(int, best_data.get('total_users', [])))
-                self.daily_active = set(map(int, best_data.get('daily_active', [])))
-                self.command_stats = best_data.get('command_stats', {})
-                self.daily_downloads = best_data.get('daily_downloads', {})
-                self.last_reset = best_data.get('last_reset', str(date.today()))
-
-            logger.info(f"Analytics loaded from {best_path}. Total users: {len(self.total_users)}")
-
-            # Loaded data ko primary + backup dono jagah sync kar do
-            self.save()
-
+            if os.path.exists(self.filename):
+                with open(self.filename, 'r') as f:
+                    data = json.load(f)
+                    with self.lock:
+                        self.total_users = set(data.get('total_users', []))
+                        self.daily_active = set(data.get('daily_active', []))
+                        self.command_stats = data.get('command_stats', {})
+                        self.daily_downloads = data.get('daily_downloads', {})
+                    logger.info("Analytics loaded successfully")
         except Exception as e:
             logger.error(f"Error loading analytics: {e}")
-            logger.error("Analytics file NOT overwritten, so Total Users will not reset due to load error.")
-
-    def _write_json_atomic(self, path: Path, data: dict):
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            temp_file = str(path) + ".tmp"
-
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2)
-
-            os.replace(temp_file, path)
-
-        except Exception as e:
-            logger.error(f"Error writing analytics file {path}: {e}")
-
+            self.save()
+    
     def save(self):
         try:
             with self.lock:
-                data = {
-                    'total_users': sorted(list(map(int, self.total_users))),
-                    'daily_active': sorted(list(map(int, self.daily_active))),
-                    'command_stats': self.command_stats,
-                    'daily_downloads': self.daily_downloads,
-                    'last_reset': self.last_reset
-                }
-
-            # Primary file + backup file dono me save hoga
-            primary = Path(self.filename)
-            backup = Path(self.backup_filename)
-
-            self._write_json_atomic(primary, data)
-            self._write_json_atomic(backup, data)
-
-            # Agar /data persistent folder available hai to waha bhi backup save hoga
-            if Path("/data").exists():
-                self._write_json_atomic(Path("/data") / self.base_filename, data)
-                self._write_json_atomic(Path("/data") / (self.base_filename + ".bak"), data)
-
+                with open(self.filename, 'w') as f:
+                    json.dump({
+                        'total_users': list(self.total_users),
+                        'daily_active': list(self.daily_active),
+                        'command_stats': self.command_stats,
+                        'daily_downloads': self.daily_downloads,
+                        'last_reset': str(date.today())
+                    }, f, indent=2)
         except Exception as e:
             logger.error(f"Error saving analytics: {e}")
-
+    
     def track_user(self, user_id: int, command: str = "start"):
-        try:
-            user_id = int(user_id)
-
-            with self.lock:
-                self.total_users.add(user_id)
-                self.daily_active.add(user_id)
-                self.command_stats[command] = self.command_stats.get(command, 0) + 1
-
-            self.save()
-
-        except Exception as e:
-            logger.error(f"Error tracking user: {e}")
-
+        with self.lock:
+            self.total_users.add(user_id)
+            self.daily_active.add(user_id)
+            self.command_stats[command] = self.command_stats.get(command, 0) + 1
+        self.save()
+    
     def track_download(self, semester: str, branch: str):
-        try:
-            key = f"{semester}_{branch}"
-
-            with self.lock:
-                self.daily_downloads[key] = self.daily_downloads.get(key, 0) + 1
-
-            self.save()
-
-        except Exception as e:
-            logger.error(f"Error tracking download: {e}")
-
+        key = f"{semester}_{branch}"
+        with self.lock:
+            self.daily_downloads[key] = self.daily_downloads.get(key, 0) + 1
+        self.save()
+    
     def reset_daily(self):
-        try:
-            with self.lock:
-                # Total Users ko bilkul touch nahi karega
-                self.daily_active.clear()
-                self.daily_downloads.clear()
-                self.last_reset = str(date.today())
-
-            self.save()
-            logger.info(f"Daily analytics reset completed. Total users preserved: {len(self.total_users)}")
-
-        except Exception as e:
-            logger.error(f"Error resetting daily analytics: {e}")
+        with self.lock:
+            self.daily_active.clear()
+            self.daily_downloads.clear()
+        self.save()
+        logger.info("Daily analytics reset completed")
 
 analytics = Analytics()
 
@@ -713,15 +570,21 @@ def show_help(message):
             "*Need Support?*\n"
             "Join our Telegram channel for updates!\n\n"
             
+            "👨‍💻 *Developer Contact:*\n"
+            "Md Zafar\n"
+            "🔗 *LinkedIn:* https://www.linkedin.com/in/mdzafar864\n\n"
+            
             "📢 *Channel:* @EngineersPathwayOfficial\n"
-            "▶️ *YouTube:* Engineers Pathway Official\n"
-            "👨‍💻 *Developer Contact:* [Click Here](https://www.linkedin.com/in/mdzafar864)"
+            "▶️ *YouTube:* Engineers Pathway Official"
         )
         
         markup = InlineKeyboardMarkup()
         markup.add(
             InlineKeyboardButton("📢 Channel", url="https://t.me/EngineersPathwayOfficial"),
             InlineKeyboardButton("▶️ YouTube", url=YOUTUBE_LINK)
+        )
+        markup.add(
+            InlineKeyboardButton("👨‍💻 Developer LinkedIn", url="https://www.linkedin.com/in/mdzafar864")
         )
         
         bot.send_message(

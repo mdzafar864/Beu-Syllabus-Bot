@@ -567,20 +567,11 @@ def show_help(message):
             "/start - Restart bot\n"
             "/menu - Show main menu\n"
             
-            "*Need Support?*\n"
-            "Join our Telegram channel for updates!\n\n"
-            
-            "📢 *Channel:* @EngineersPathwayOfficial\n"
-            "▶️ *YouTube:* Engineers Pathway Official\n"
             "👨‍💻 *Developer Contact:* [Click Here](https://www.linkedin.com/in/mdzafar864)"
 
         )
         
         markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton("📢 Channel", url="https://t.me/EngineersPathwayOfficial"),
-            InlineKeyboardButton("▶️ YouTube", url=YOUTUBE_LINK)
-        )
         markup.add(
             InlineKeyboardButton("👨‍💻 Click Here", url="https://www.linkedin.com/in/mdzafar864")
         )

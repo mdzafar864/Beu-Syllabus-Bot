@@ -1,1 +1,0 @@
-# beu-syllabus-bot

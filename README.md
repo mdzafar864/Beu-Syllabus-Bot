@@ -1,237 +1,285 @@
-# BEU Syllabus Bot
+# 🤖 BEU Syllabus Bot
 
-[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue.svg)](https://python.org)
-[![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-blue.svg)](https://t.me/EngineersPathwayOfficial)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+<p align="center">
+  <img src="logo.png" alt="BEU Syllabus Bot Logo" width="160">
+</p>
 
-A Telegram bot designed to help engineering students under **Bihar Engineering University (BEU)** access semester-wise syllabus instantly.
+<h1 align="center">BEU Syllabus Bot</h1>
 
-> **Live Bot:** [@BEUSyllabusBot](https://t.me/beu_syllabuss_bot)
+<p align="center">
+<b>Instant BEU B.Tech Syllabus on Telegram</b>
+</p>
 
----
-
-## 📚 About the Bot
-
-The BEU Syllabus Bot simplifies academic life by providing instant access to B.Tech semester syllabus for multiple branches. Built with a modular architecture for better maintainability and scalability.
-
-### ✨ Features
-
-- 📖 **Instant Syllabus Access** - Download semester-wise syllabus PDFs
-- 🏗️ **Branch Support** - CE, CS, EE, ECE, ME, IoT
-- 📊 **Analytics Dashboard** - Track bot usage and popular downloads
-- 📤 **Share Syllabus** - Share syllabus with friends directly
-- 🔒 **Force Join Channel** - Ensures users join the official channel
-- 👑 **Admin Panel** - Broadcast messages and view detailed stats
-- 🔄 **Daily Reset** - Automatic daily analytics reset
+<p align="center">
+<a href="https://t.me/beu_syllabuss_bot">
+<img src="https://img.shields.io/badge/Telegram-Bot-2CA5E0?style=for-the-badge&logo=telegram">
+</a>
+<img src="https://img.shields.io/badge/Python-3.x-blue?style=for-the-badge&logo=python">
+<img src="https://img.shields.io/badge/Telegram%20API-Supported-success?style=for-the-badge">
+<img src="https://img.shields.io/badge/Open%20Source-Yes-brightgreen?style=for-the-badge">
+<img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge">
+</p>
 
 ---
 
-## 🏗️ Project Structure
+# 📖 About
 
--syllabus-bot/
-├── main.py # Entry point
-├── config.py # Configuration settings
-├── requirements.txt # Dependencies
-├── render.yaml # Hosting rander
-├── README.md # Documentation
-│
-├── data/ # Data modules
-│ ├── init.py
-│ ├── constants.py # Emojis & constants
-│ └── syllabus.py # Syllabus database
-│
-├── models/ # Data models
-│ ├── init.py
-│ ├── user_session.py # User session management
-│ └── analytics.py # Analytics tracking
-│
-├── handlers/ # Bot handlers
-│ ├── init.py
-│ ├── base_handlers.py # Core commands (start, help, stats)
-│ ├── syllabus_handlers.py # Syllabus flow handlers
-│ ├── admin_handlers.py # Admin commands
-│ └── callbacks.py # Callback handlers
-│
-└── utils/ # Utility modules
-├── init.py
-├── menu_builder.py # UI menu builder
-├── validators.py # Validation functions
-└── helpers.py # Helper functions
+**BEU Syllabus Bot** is a Telegram Bot developed for **Bihar Engineering University (BEU)** students.
+
+It allows students to access the latest **Branch-wise** and **Semester-wise** syllabus PDFs instantly without searching multiple websites.
 
 ---
 
-## 🛠️ Technologies Used
+# ✨ Features
 
-| Technology | Purpose |
-|------------|---------|
-| **Python 3.8+** | Programming Language |
-| **PyTelegramBotAPI** | Telegram Bot API wrapper |
-| **Flask** | Health check server |
-| **Threading** | Concurrent operations |
-| **JSON** | Data persistence |
+- 📚 Branch-wise Syllabus
+- 🎓 Semester-wise Navigation
+- 📄 Official PDF Syllabus
+- ⚡ Instant Response
+- 📥 One Click Download
+- 🤖 Telegram Based
+- 📱 Mobile Friendly
+- 🔄 Regular Updates
+- 🎯 Easy to Use
+- 💯 Free Forever
 
 ---
 
-## 🚀 Setup Instructions
+# 🎓 Supported Branches
 
-### Prerequisites
+- Computer Science Engineering (CSE)
+- Information Technology (IT)
+- Artificial Intelligence & Machine Learning (AIML)
+- Artificial Intelligence & Data Science (AIDS)
+- Civil Engineering (CE)
+- Mechanical Engineering (ME)
+- Electrical Engineering (EE)
+- Electronics & Communication Engineering (ECE)
+- Electrical & Electronics Engineering (EEE)
 
-- Python 3.8 or higher
-- Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
-- Telegram Channel (for force join feature)
+---
 
-### 1. Create a Telegram Bot
+# 📚 Supported Semesters
 
-1. Open Telegram and message [@BotFather](https://t.me/BotFather)
-2. Send `/newbot` and follow the instructions
-3. Copy the API token provided by BotFather
+- 1st Semester
+- 2nd Semester
+- 3rd Semester
+- 4th Semester
+- 5th Semester
+- 6th Semester
+- 7th Semester
+- 8th Semester
 
-### 2. Clone the Repository
+---
+
+# 🚀 Bot Link
+
+### 👉 https://t.me/beu_syllabuss_bot
+
+---
+
+# 🛠 Built With
+
+- Python
+- python-telegram-bot
+- Telegram Bot API
+- Google Drive
+- JSON Database
+
+---
+
+# 📂 Project Structure
+
+```text
+Beu-Syllabus-Bot
+│
+├── bot.py
+├── handlers/
+├── database/
+├── utils/
+├── requirements.txt
+├── .env
+├── logo.png
+└── README.md
+```
+
+---
+
+# 📦 Installation
+
+Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/beu-syllabus-bot.git
-cd beu-syllabus-bot
+git clone https://github.com/mdzafar864/Beu-Syllabus-Bot.git
+```
 
-3. Install Dependencies
-bash
+Go to Project
+
+```bash
+cd Beu-Syllabus-Bot
+```
+
+Install Requirements
+
+```bash
 pip install -r requirements.txt
+```
 
-4. Configure Environment Variables
-Create a .env file in the root directory:
+Run Bot
 
-env
-BOT_TOKEN=your_telegram_bot_token_here
-PORT=8080
-LOG_LEVEL=INFO
-Or set them directly in your environment:
+```bash
+python bot.py
+```
 
-bash
-export BOT_TOKEN="your_telegram_bot_token_here"
+---
 
-5. Update Configuration
-Edit config.py to customize: python
+# ⚙️ Environment Variables
 
-# config.py
-CHANNEL_USERNAME = "@YourChannelUsername"  # Your Telegram channel
-ADMIN_ID = 123456789  # Your Telegram User ID (for admin access)
+Create a **.env** file
 
-6. Run the Bot
-bash
-python main.py
+```env
+BOT_TOKEN=YOUR_BOT_TOKEN
+```
 
-📦 Deployment
-Deploy on Railway Fork this repository
+---
 
-Create a new project on Railway
+# 📸 Screenshots
 
-Connect your GitHub repository
+```
+screenshots/home.jpg
+screenshots/branch.jpg
+screenshots/semester.jpg
+screenshots/pdf.jpg
+```
 
-Add environment variables:
+---
 
-BOT_TOKEN: Your bot token
+# 🌟 Why Use This Bot?
 
-PORT: 8080 (default)
+- Free
+- Fast
+- Reliable
+- Official Syllabus PDFs
+- No Login Required
+- Easy Navigation
+- Mobile Friendly
+- Instant Access
 
-Deploy!
+---
 
-Deploy on Render
-Create a new Web Service on Render
+# 🚀 Future Roadmap
 
-Connect your GitHub repository
+- 🔍 Search Syllabus
+- ❤️ Favorites
+- 🌙 Dark Mode
+- 📢 Notifications
+- 📊 Usage Analytics
+- 📚 Notes Section
+- 📝 PYQ Integration
+- 🎥 Video Resources
 
-Set the start command: python main.py
+---
 
-Add environment variables
+# 🤝 Contributing
 
-Deploy!
+Contributions are always welcome!
 
-Deploy on Heroku
-bash
-heroku create beu-syllabus-bot
-heroku config:set BOT_TOKEN=your_token_here
-heroku addons:create heroku-postgresql:hobby-dev  # Optional
-git push heroku main
+1. Fork Repository
 
-🔧 Commands
-User Commands Description
-/start or /menu	Show main menu
-📚 Syllabus	Access syllabus
-📊 Stats	View bot statistics
-ℹ️ Help	Show help guide
-⭐ Feedback	Send feedback to admin
-🔄 Reset	Reset current session
+2. Create Branch
 
-Admin Commands
-Command	Description
-/admin	Open admin panel
-/broadcast <message>	Send message to all users
-/stats	View detailed statistics
+```bash
+git checkout -b feature-name
+```
 
-🗂️ Syllabus Data
-The syllabus database includes:
+3. Commit Changes
 
-Semesters: 1st to 8th (New & Old curriculum)
+```bash
+git commit -m "Added new feature"
+```
 
-Branches: CE, CS, EE, ECE, ME, IoT
+4. Push
 
-Format: Google Drive links (PDF)
+```bash
+git push origin feature-name
+```
 
-To update syllabus data, edit data/syllabus.py.
+5. Create Pull Request
 
-📊 Analytics
-The bot tracks:
+---
 
-Total users
+# 👨‍💻 Developer
 
-Daily active users
+<p align="center">
+<img src="Developer.png" width="170">
+</p>
 
-Command usage statistics
+## Md Zafar
 
-Daily download counts
+💻 Full Stack Developer
 
-Analytics data is stored in analytics.json and resets daily.
+🎓 B.Tech Student
 
-🤝 Contributing
-Contributions are welcome! Here's how you can help:
+🏫 Bihar Engineering University
 
-Fork the repository
+🌐 Portfolio
 
-Create a feature branch: git checkout -b feature/your-feature
+https://mdzafar864.github.io/Portfolio/
 
-Commit changes: git commit -m 'Add some feature'
+🐙 GitHub
 
-Push: git push origin feature/your-feature
+https://github.com/mdzafar864
 
-Open a Pull Request
+📧 Email
 
-👨‍💻 Developer
-Md Zafar - LinkedIn
+mdzafarsabour35@gmail.com
 
-📝 License
-This project is licensed under the MIT License - see the LICENSE file for details.
+---
 
-🙏 Acknowledgments
+# ⭐ Support
 
-PyTelegramBotAPI - Telegram Bot API wrapper
+If you like this project,
 
-Flask - Web framework for health checks
+⭐ Star this Repository
 
-All contributors and users of the bot
+🍴 Fork it
 
-📞 Support
-For issues, questions, or suggestions:
+📢 Share it with Friends
 
-Open an issue
+❤️ Contribute to Improve It
 
-Contact the developer
+---
 
-📈 TODO
-□ Add search functionality
-□ Add more branches
-□ Implement user preferences
-□ Add multi-language support
-□ Create web dashboard for analytics
+# 📜 License
 
+Licensed under the **MIT License**.
 
-🌟 Star this repository if you find it helpful!
+---
 
+# 🙏 Acknowledgements
+
+Special Thanks To
+
+- Bihar Engineering University
+- Telegram
+- Python Community
+- Open Source Contributors
+- Every BEU Student
+
+---
+
+<p align="center">
+⭐ If you find this project useful, please give it a Star.
+</p>
+
+<p align="center">
+<a href="https://github.com/mdzafar864/Beu-Syllabus-Bot">⭐ Star Repository</a> •
+<a href="https://t.me/beu_syllabuss_bot">🤖 Telegram Bot</a> •
+<a href="https://github.com/mdzafar864">🐙 GitHub</a>
+</p>
+
+---
+
+<p align="center">
+© 2026 <strong>BEU Syllabus Bot</strong> · Developed by <strong>Md Zafar</strong>
+</p>

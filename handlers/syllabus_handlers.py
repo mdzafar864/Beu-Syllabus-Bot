@@ -19,6 +19,9 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             if check_join_required(bot, message):
                 return
             
+            # User logging & tracking
+            analytics.log_user_activity(message.from_user)
+            
             user_session.set(message.chat.id, "step", "waiting_for_branch")
             bot.send_message(
                 message.chat.id,
@@ -34,6 +37,8 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
         try:
             if check_join_required(bot, message):
                 return
+            
+            analytics.log_user_activity(message.from_user)
             
             # Find which branch was selected
             selected_branch = None
@@ -108,7 +113,12 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             original_url = SYLLABUS[semester][branch]
             download_url = get_download_link(original_url)
             
-            analytics.track_download(semester, branch)
+            # Track user detail & download in Analytics/Database
+            analytics.log_user_activity(message.from_user)
+            analytics.track_download(semester, branch, user=message.from_user)
+            
+            # Get updated download stats
+            total_dl = analytics.get_total_downloads()
             
             # Create download markup
             markup = MenuBuilder.download_markup(download_url, semester, branch)
@@ -120,19 +130,20 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
                     message.chat.id,
                     download_url,
                     caption=f"📚 *{semester} Semester - {BRANCH_EMOJIS.get(branch, branch)} Syllabus*\n\n"
+                           f"👤 *User:* {message.from_user.first_name} (@{message.from_user.username or 'N/A'})\n"
                            f"📅 *Requested:* {datetime.now().strftime('%d %b %Y, %I:%M %p')}\n"
-                           f"📊 *Downloads Today:* {analytics.daily_downloads.get(f'{semester}_{branch}', 0)}",
+                           f"📊 *Total Downloads:* {total_dl}",
                     reply_markup=markup,
                     parse_mode='Markdown'
                 )
-                logger.info(f"Syllabus sent: {semester} - {branch} to user {message.chat.id}")
+                logger.info(f"Syllabus sent: {semester} - {branch} to user {message.chat.id} (@{message.from_user.username})")
             except Exception as doc_error:
                 logger.error(f"Document send failed: {doc_error}")
                 bot.send_message(
                     message.chat.id,
                     f"📚 *{semester} Semester - {BRANCH_EMOJIS.get(branch, branch)} Syllabus*\n\n"
                     f"✅ Syllabus ready!\n\n"
-                    f"📊 Downloads Today: {analytics.daily_downloads.get(f'{semester}_{branch}', 0)}",
+                    f"📊 Total Downloads: {total_dl}",
                     reply_markup=markup,
                     parse_mode='Markdown'
                 )

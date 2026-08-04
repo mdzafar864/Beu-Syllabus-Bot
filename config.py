@@ -11,6 +11,9 @@ ADMIN_ID = 5861904079  # Your Telegram ID
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
 
+# Database Configuration
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 # File Paths
 LOG_FILE = BASE_DIR / "bot.log"
 ANALYTICS_FILE = BASE_DIR / "analytics.json"

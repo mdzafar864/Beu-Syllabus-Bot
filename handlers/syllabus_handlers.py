@@ -19,7 +19,7 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             if check_join_required(bot, message):
                 return
             
-            # User logging & tracking
+            # User activity logging
             analytics.log_user_activity(message.from_user)
             
             user_session.set(message.chat.id, "step", "waiting_for_branch")
@@ -169,3 +169,4 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             )
         except Exception as e:
             logger.error(f"Error in back_to_branches: {e}")
+                

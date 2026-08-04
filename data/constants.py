@@ -16,7 +16,7 @@ COMMAND_DESCRIPTIONS = {
 }
 
 MENU_BUTTONS = {
-    "SYLLABUS": "📚 Syllabus",
+    "SYLLABUS": "Syllabus",
     "STATS": "📊 Stats",
     "HELP": "ℹ️ Help",
     "FEEDBACK": "⭐ Feedback",

@@ -5,7 +5,15 @@ from datetime import datetime, timedelta
 
 import telebot
 
-from config import TOKEN, LOG_FILE, BASE_DIR, WEB_PORT
+from config import (
+    TOKEN, 
+    LOG_FILE, 
+    BASE_DIR, 
+    WEB_PORT, 
+    DATABASE_URL, 
+    SUPABASE_URL, 
+    SUPABASE_ANON_KEY
+)
 from models.user_session import UserSession
 from models.analytics import Analytics
 from handlers import (
@@ -89,7 +97,7 @@ def run_bot():
 
 # ================== MAIN ENTRY POINT ==================
 if __name__ == "__main__":
-    logger.info("🚀 BEU Syllabus Bot Starting on Railway!")
+    logger.info("🚀 BEU Syllabus Bot Starting...")
     logger.info(f"Base Directory: {BASE_DIR}")
     
     if not TOKEN:

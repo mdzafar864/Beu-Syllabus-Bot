@@ -81,7 +81,7 @@ def run_bot():
     while True:
         try:
             logger.info("🚀 Starting bot...")
-            bot.infinity_polling(timeout=30, long_polling_timeout=30)
+            #bot.infinity_polling(timeout=30, long_polling_timeout=30)
         except Exception as e:
             logger.error(f"Bot crashed: {e}")
             logger.info("Restarting bot in 10 seconds...")

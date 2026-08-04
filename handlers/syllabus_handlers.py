@@ -78,13 +78,13 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
                 reply_markup=MenuBuilder.main_menu()
             )
     
-    @bot.message_handler(func=lambda m: m.text and m.text.startswith("📖 "))
+    @bot.message_handler(func=lambda m: user_session.get(m.chat.id, {}).get("step") == "waiting_for_semester")
     def semester_after_branch(message):
         try:
             if check_join_required(bot, message):
                 return
             
-            semester = message.text.replace("📖 ", "")
+            semester = message.text.replace("📖 ", "").strip()
             session = user_session.get(message.chat.id)
             
             if not session or not session.get("selected_branch"):
@@ -157,4 +157,4 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
                 parse_mode='Markdown'
             )
         except Exception as e:
-            logger.error(f"Error in back_to_branches: {e}")
+            logger.error(f"Error in back_to_branches: {e}")                                      

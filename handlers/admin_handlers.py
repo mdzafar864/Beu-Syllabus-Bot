@@ -1,7 +1,6 @@
 import logging
 import time
 from telebot import TeleBot
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.menu_builder import MenuBuilder
 from models.analytics import Analytics
 from config import ADMIN_ID
@@ -17,17 +16,24 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
                 bot.send_message(message.chat.id, "⛔ Unauthorized access!")
                 return
             
+            total_users = analytics.get_total_users_count()
+            active_today = analytics.get_active_today_count()
+            total_downloads = analytics.get_total_downloads()
+
             admin_text = (
                 "👑 *Admin Panel*\n\n"
-                f"📊 *Total Users:* {len(analytics.total_users)}\n"
-                f"📅 *Active Today:* {len(analytics.daily_active)}\n"
-                f"📚 *Total Downloads:* {sum(analytics.daily_downloads.values())}\n\n"
+                f"👥 *Total Users:* {total_users}\n"
+                f"📅 *Active Today:* {active_today}\n"
+                f"📚 *Total Downloads:* {total_downloads}\n\n"
                 "📈 *Top Downloads:*\n"
             )
             
             top_downloads = analytics.get_top_downloads(10)
-            for sem_branch, count in top_downloads:
-                admin_text += f"• {sem_branch}: {count}\n"
+            if top_downloads:
+                for sem_branch, count in top_downloads:
+                    admin_text += f"• {sem_branch}: {count}\n"
+            else:
+                admin_text += "• No downloads logged yet.\n"
             
             markup = MenuBuilder.admin_markup()
             
@@ -52,11 +58,14 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
             
             status_msg = bot.send_message(message.chat.id, "📤 Sending broadcast...")
             
-            for user_id in list(analytics.total_users):
+            # Fetch all user IDs from analytics/database
+            user_ids = analytics.get_all_user_ids()
+            
+            for user_id in user_ids:
                 try:
                     bot.send_message(user_id, f"📢 *Announcement*\n\n{msg}", parse_mode='Markdown')
                     success += 1
-                except:
+                except Exception:
                     failed += 1
                 time.sleep(0.1)
             
@@ -73,20 +82,18 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
     @bot.message_handler(commands=['stats'])
     def user_stats(message):
         try:
-            if message.from_user.id != ADMIN_ID:
-                bot.send_message(message.chat.id, "⛔ Unauthorized access!")
-                return
-            
+            # Accessible to Admin or Stats check
+            total_users = analytics.get_total_users_count()
+            active_today = analytics.get_active_today_count()
+            total_downloads = analytics.get_total_downloads()
+
             stats_text = (
-                "📊 *Detailed Statistics*\n\n"
-                f"👥 *Total Users:* {len(analytics.total_users)}\n"
-                f"📅 *Active Today:* {len(analytics.daily_active)}\n"
-                f"📚 *Total Downloads:* {sum(analytics.daily_downloads.values())}\n\n"
-                "📈 *Command Usage:*\n"
+                "📊 *Bot Statistics*\n\n"
+                f"👥 *Total Users:* {total_users}\n"
+                f"📅 *Active Today:* {active_today}\n"
+                f"📚 *Total Downloads:* {total_downloads}\n\n"
+                f"🕒 *Last Updated:* {time.strftime('%H:%M:%S')}\n"
             )
-            
-            for cmd, count in sorted(analytics.command_stats.items(), key=lambda x: x[1], reverse=True)[:10]:
-                stats_text += f"• /{cmd}: {count}\n"
             
             bot.send_message(message.chat.id, stats_text, parse_mode='Markdown')
         except Exception as e:

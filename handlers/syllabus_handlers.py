@@ -13,14 +13,12 @@ logger = logging.getLogger(__name__)
 
 def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session: UserSession):
     
-    # Debug: Log syllabus structure when handlers are registered
+    # Debug: Log syllabus structure
     logger.info("📚 ===== SYLLABUS DATA STRUCTURE =====")
-    logger.info(f"📚 Total semesters in SYLLABUS: {len(SYLLABUS)}")
+    logger.info(f"📚 Total semesters: {len(SYLLABUS)}")
     if SYLLABUS:
         for sem, branches in SYLLABUS.items():
-            logger.info(f"  📖 Semester {sem}: {list(branches.keys()) if isinstance(branches, dict) else 'INVALID STRUCTURE'}")
-    else:
-        logger.error("❌ SYLLABUS IS EMPTY OR NOT LOADED!")
+            logger.info(f"  📖 {sem}: {list(branches.keys()) if isinstance(branches, dict) else 'INVALID'}")
     logger.info("📚 ====================================")
     
     @bot.message_handler(func=lambda m: m.text == MENU_BUTTONS["SYLLABUS"])
@@ -29,10 +27,6 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             if check_join_required(bot, message):
                 return
             
-            # Log the user action
-            logger.info(f"📚 User {message.chat.id} accessed syllabus menu")
-            
-            # Check if SYLLABUS has data
             if not SYLLABUS:
                 bot.send_message(
                     message.chat.id,
@@ -43,14 +37,10 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             
             user_session.set(message.chat.id, "step", "waiting_for_branch")
             
-            # Send branch selection menu
-            branch_text = format_branch_text()
-            branch_markup = MenuBuilder.branch_first_menu()
-            
             bot.send_message(
                 message.chat.id,
-                branch_text,
-                reply_markup=branch_markup,
+                format_branch_text(),
+                reply_markup=MenuBuilder.branch_first_menu(),
                 parse_mode='Markdown'
             )
             logger.info(f"✅ Branch menu shown to user {message.chat.id}")
@@ -77,7 +67,7 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
                     break
             
             if not selected_branch:
-                bot.send_message(message.chat.id, "❌ Invalid branch! Please select from the menu.")
+                bot.send_message(message.chat.id, "❌ Invalid branch!")
                 return
             
             logger.info(f"📚 User {message.chat.id} selected branch: {selected_branch}")
@@ -88,37 +78,48 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             
             # Find which semesters have this branch
             available_semesters = []
-            for sem, branches in SYLLABUS.items():
+            semester_display_names = {}  # Map display name to actual key
+            
+            for sem_key, branches in SYLLABUS.items():
                 if isinstance(branches, dict) and selected_branch in branches:
-                    available_semesters.append(sem)
-                elif isinstance(branches, dict):
-                    # Debug: Log available branches for each semester
-                    logger.debug(f"  Semester {sem} has branches: {list(branches.keys())}")
+                    # Create a clean display name
+                    if "New" in sem_key or "Old" in sem_key:
+                        # For "1st New", show as "1st New"
+                        display_name = sem_key
+                    else:
+                        # For "4th", show as "4"
+                        display_name = sem_key.replace("th", "").replace("st", "").replace("nd", "").replace("rd", "")
+                    
+                    available_semesters.append(display_name)
+                    semester_display_names[display_name] = sem_key  # Map display to actual
             
             if not available_semesters:
                 bot.send_message(
                     message.chat.id,
-                    f"❌ {BRANCH_EMOJIS.get(selected_branch, selected_branch)} branch का कोई syllabus उपलब्ध नहीं है।\n\n"
-                    f"Available semesters: {list(SYLLABUS.keys())}\n"
-                    f"Available branches per semester may vary.",
+                    f"❌ {BRANCH_EMOJIS.get(selected_branch, selected_branch)} branch का कोई syllabus उपलब्ध नहीं है।",
                     reply_markup=MenuBuilder.main_menu()
                 )
-                logger.warning(f"⚠️ No syllabus found for branch {selected_branch}")
                 return
             
-            # Sort semesters properly (as numbers)
-            available_semesters.sort(key=lambda x: int(x) if x.isdigit() else 999)
+            # Sort semesters properly
+            def sort_key(s):
+                # Extract number from display name
+                import re
+                numbers = re.findall(r'\d+', s)
+                return int(numbers[0]) if numbers else 999
             
-            semester_text = format_semester_text(selected_branch, available_semesters)
-            semester_markup = MenuBuilder.semester_for_branch_menu(selected_branch, available_semesters)
+            available_semesters.sort(key=sort_key)
+            
+            # Store the mapping in session for later use
+            user_session.set(message.chat.id, "semester_mapping", semester_display_names)
             
             bot.send_message(
                 message.chat.id,
-                semester_text,
-                reply_markup=semester_markup,
+                format_semester_text(selected_branch, available_semesters),
+                reply_markup=MenuBuilder.semester_for_branch_menu(selected_branch, available_semesters),
                 parse_mode='Markdown'
             )
-            logger.info(f"✅ Semester menu shown to user {message.chat.id} for branch {selected_branch}")
+            logger.info(f"✅ Semester menu shown for branch {selected_branch}")
             
         except Exception as e:
             logger.error(f"❌ Error in branch_selected_first: {e}", exc_info=True)
@@ -128,14 +129,15 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
                 reply_markup=MenuBuilder.main_menu()
             )
     
-    @bot.message_handler(func=lambda m: m.text and m.text.startswith("📖 "))
+    @bot.message_handler(func=lambda m: m.text and (m.text.startswith("📖 ") or m.text.startswith("📚 ")))
     def semester_after_branch(message):
         try:
             if check_join_required(bot, message):
                 return
             
-            semester = message.text.replace("📖 ", "").strip()
-            logger.info(f"📚 User {message.chat.id} selected semester: {semester}")
+            # Extract semester from message (remove emoji and space)
+            semester_display = message.text.split(" ", 1)[-1].strip()
+            logger.info(f"📚 User {message.chat.id} selected semester display: {semester_display}")
             
             session = user_session.get(message.chat.id)
             
@@ -148,73 +150,105 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
                 return
             
             branch = session["selected_branch"]
-            logger.info(f"📚 Retrieving syllabus for Branch: {branch}, Semester: {semester}")
             
-            # Check if syllabus exists for this branch and semester
-            if semester not in SYLLABUS:
+            # Get the actual semester key from mapping or use display name directly
+            semester_mapping = session.get("semester_mapping", {})
+            
+            # Try to find the actual key
+            actual_semester_key = None
+            
+            # Check if display is directly in SYLLABUS
+            if semester_display in SYLLABUS:
+                actual_semester_key = semester_display
+            # Check if display is in mapping
+            elif semester_display in semester_mapping:
+                actual_semester_key = semester_mapping[semester_display]
+            # Try to match by number (e.g., "1" matches "1st New" or "1st Old")
+            else:
+                # Extract number from display
+                import re
+                display_num = re.findall(r'\d+', semester_display)
+                if display_num:
+                    num = display_num[0]
+                    # Find all semesters with this number
+                    matching_keys = [k for k in SYLLABUS.keys() if k.startswith(num)]
+                    if matching_keys:
+                        # If multiple (New and Old), ask user which one
+                        if len(matching_keys) > 1:
+                            # Create inline keyboard for New/Old selection
+                            from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+                            markup = InlineKeyboardMarkup(row_width=2)
+                            for key in matching_keys:
+                                markup.add(InlineKeyboardButton(
+                                    text=key,
+                                    callback_data=f"sem_{key}_{branch}"
+                                ))
+                            bot.send_message(
+                                message.chat.id,
+                                f"⚠️ Multiple versions found for Semester {num}. Please select one:",
+                                reply_markup=markup
+                            )
+                            return
+                        else:
+                            actual_semester_key = matching_keys[0]
+            
+            if not actual_semester_key:
                 bot.send_message(
                     message.chat.id,
-                    f"❌ Semester {semester} का syllabus उपलब्ध नहीं है।\n\n"
+                    f"❌ Semester '{semester_display}' not found.\n\n"
                     f"Available semesters: {', '.join(list(SYLLABUS.keys()))}",
                     reply_markup=MenuBuilder.main_menu()
                 )
                 return
             
-            semester_data = SYLLABUS[semester]
+            # Check if branch exists in this semester
+            semester_data = SYLLABUS[actual_semester_key]
             
             if not isinstance(semester_data, dict):
                 bot.send_message(
                     message.chat.id,
-                    f"❌ Data format error for semester {semester}. Please contact admin.",
+                    f"❌ Data format error for {actual_semester_key}. Please contact admin.",
                     reply_markup=MenuBuilder.main_menu()
                 )
-                logger.error(f"❌ Semester data is not a dict: {type(semester_data)}")
                 return
             
             if branch not in semester_data:
                 bot.send_message(
                     message.chat.id,
-                    f"❌ {BRANCH_EMOJIS.get(branch, branch)} branch का {semester} semester का syllabus उपलब्ध नहीं है।\n\n"
-                    f"Available branches for semester {semester}: {', '.join(list(semester_data.keys()))}",
+                    f"❌ {BRANCH_EMOJIS.get(branch, branch)} branch का {actual_semester_key} semester का syllabus उपलब्ध नहीं है।\n\n"
+                    f"Available branches: {', '.join(list(semester_data.keys()))}",
                     reply_markup=MenuBuilder.main_menu()
                 )
-                logger.warning(f"⚠️ Branch {branch} not found in semester {semester}")
                 return
             
             original_url = semester_data[branch]
             download_url = get_download_link(original_url)
             
-            # Track download
-            analytics.track_download(semester, branch)
-            logger.info(f"📊 Download tracked: {semester} - {branch}")
+            analytics.track_download(actual_semester_key, branch)
             
-            # Create download markup
-            markup = MenuBuilder.download_markup(download_url, semester, branch)
+            markup = MenuBuilder.download_markup(download_url, actual_semester_key, branch)
             
             bot.send_chat_action(message.chat.id, 'typing')
             
-            # Send the syllabus file
             try:
                 bot.send_document(
                     message.chat.id,
                     download_url,
-                    caption=f"📚 *{semester} Semester - {BRANCH_EMOJIS.get(branch, branch)} Syllabus*\n\n"
+                    caption=f"📚 *{actual_semester_key} Semester - {BRANCH_EMOJIS.get(branch, branch)} Syllabus*\n\n"
                            f"📅 *Requested:* {datetime.now().strftime('%d %b %Y, %I:%M %p')}\n"
-                           f"📊 *Downloads Today:* {analytics.daily_downloads.get(f'{semester}_{branch}', 0)}",
+                           f"📊 *Downloads Today:* {analytics.daily_downloads.get(f'{actual_semester_key}_{branch}', 0)}",
                     reply_markup=markup,
                     parse_mode='Markdown'
                 )
-                logger.info(f"✅ Syllabus sent: {semester} - {branch} to user {message.chat.id}")
+                logger.info(f"✅ Syllabus sent: {actual_semester_key} - {branch}")
                 
             except Exception as doc_error:
-                logger.error(f"❌ Document send failed: {doc_error}", exc_info=True)
-                
-                # Try sending as link instead
+                logger.error(f"❌ Document send failed: {doc_error}")
                 bot.send_message(
                     message.chat.id,
-                    f"📚 *{semester} Semester - {BRANCH_EMOJIS.get(branch, branch)} Syllabus*\n\n"
+                    f"📚 *{actual_semester_key} Semester - {BRANCH_EMOJIS.get(branch, branch)} Syllabus*\n\n"
                     f"✅ Syllabus ready! Click the button below to download.\n\n"
-                    f"📊 Downloads Today: {analytics.daily_downloads.get(f'{semester}_{branch}', 0)}",
+                    f"📊 Downloads Today: {analytics.daily_downloads.get(f'{actual_semester_key}_{branch}', 0)}",
                     reply_markup=markup,
                     parse_mode='Markdown'
                 )
@@ -242,7 +276,5 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
                 reply_markup=MenuBuilder.branch_first_menu(),
                 parse_mode='Markdown'
             )
-            logger.info(f"✅ User {message.chat.id} returned to branches menu")
-            
         except Exception as e:
             logger.error(f"❌ Error in back_to_branches: {e}", exc_info=True)

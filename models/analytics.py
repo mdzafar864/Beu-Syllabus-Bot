@@ -53,9 +53,11 @@ class Analytics:
             self.command_stats[command] = self.command_stats.get(command, 0) + 1
         self.save()
     
-    def track_download(self, semester: str, branch: str):
+    def track_download(self, user_id: int, semester: str, branch: str):
         key = f"{semester}_{branch}"
         with self.lock:
+            self.total_users.add(user_id)
+            self.daily_active.add(user_id)
             self.daily_downloads[key] = self.daily_downloads.get(key, 0) + 1
         self.save()
     

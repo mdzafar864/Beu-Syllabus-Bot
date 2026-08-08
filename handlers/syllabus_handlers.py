@@ -108,7 +108,8 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             original_url = SYLLABUS[semester][branch]
             download_url = get_download_link(original_url)
             
-            analytics.track_download(semester, branch)
+            # Updated: Passing message.chat.id so active user metrics get updated on download
+            analytics.track_download(message.chat.id, semester, branch)
             
             # Create download markup
             markup = MenuBuilder.download_markup(download_url, semester, branch)

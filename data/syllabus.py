@@ -75,3 +75,4 @@ SYLLABUS = {
         "ME": "https://drive.google.com/uc?export=download&id=1PPkfTohITDMkIFNuw836gSOSUjCFtt3n",
         "CE": "https://drive.google.com/uc?export=download&id=1DV6rPVbPYfuPehfUlg6sKlaw-VkcwEuq"
     }
+}

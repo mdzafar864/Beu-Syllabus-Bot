@@ -18,8 +18,9 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
                 return
             
             admin_text = (
-                "👑 *Admin Panel*\n\n"
-                f"📊 *Total Users:* {len(analytics.total_users)}\n"
+                "📊 *Admin Panel*\n"
+                "_Access verified successfully. Welcome, Admin!_\n\n"
+                f"👥 *Total Users:* {len(analytics.total_users)}\n"
                 f"📅 *Active Today:* {len(analytics.daily_active)}\n"
                 f"📚 *Total Downloads:* {sum(analytics.daily_downloads.values())}\n\n"
                 "📈 *Top Downloads:*\n"

@@ -49,6 +49,8 @@ def register_base_handlers(bot: TeleBot, analytics: Analytics, user_session: Use
             if check_join_required(bot, message):
                 return
             
+            analytics.track_user(message.chat.id, "help")
+            
             help_text = (
                 "📚 *Help & Guide*\n\n"
                 "*How to use:*\n"
@@ -74,6 +76,8 @@ def register_base_handlers(bot: TeleBot, analytics: Analytics, user_session: Use
         try:
             if check_join_required(bot, message):
                 return
+            
+            analytics.track_user(message.chat.id, "stats")
             
             stats_text = (
                 "📊 *Bot Statistics*\n\n"
@@ -104,6 +108,8 @@ def register_base_handlers(bot: TeleBot, analytics: Analytics, user_session: Use
         try:
             if check_join_required(bot, message):
                 return
+            
+            analytics.track_user(message.chat.id, "feedback")
             
             feedback_text = (
                 "💬 *Send Feedback*\n\n"
@@ -170,6 +176,7 @@ def register_base_handlers(bot: TeleBot, analytics: Analytics, user_session: Use
             if check_join_required(bot, message):
                 return
             
+            analytics.track_user(message.chat.id, "reset")
             user_session.clear(message.chat.id)
             bot.send_message(
                 message.chat.id,
@@ -185,6 +192,7 @@ def register_base_handlers(bot: TeleBot, analytics: Analytics, user_session: Use
             if check_join_required(bot, message):
                 return
             
+            analytics.track_user(message.chat.id, "main_menu")
             user_session.clear(message.chat.id)
             start(message)
         except Exception as e:
@@ -196,6 +204,8 @@ def register_base_handlers(bot: TeleBot, analytics: Analytics, user_session: Use
             if check_join_required(bot, message):
                 return
             
+            analytics.track_user(message.chat.id, "unknown")
+            
             bot.send_message(
                 message.chat.id,
                 "❓ *Unknown Command*\n\n"
@@ -204,4 +214,4 @@ def register_base_handlers(bot: TeleBot, analytics: Analytics, user_session: Use
                 parse_mode='Markdown'
             )
         except Exception as e:
-            logger.error(f"Error in handle_unknown: {e}")
+            logger.error(f"Error in handle_unknown: {e}")                          

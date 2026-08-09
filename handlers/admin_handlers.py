@@ -1,5 +1,6 @@
 import logging
 import time
+import html
 from telebot import TeleBot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.menu_builder import MenuBuilder
@@ -24,23 +25,24 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
             total_downloads_count = sum(daily_downloads_dict.values()) if daily_downloads_dict else 0
 
             admin_text = (
-                "📊 *Admin Panel*\n"
-                "_Access verified successfully. Welcome, Admin!_\n\n"
-                f"👥 *Total Users:* {total_users_count}\n"
-                f"📅 *Active Today:* {daily_active_count}\n"
-                f"📚 *Total Downloads:* {total_downloads_count}\n\n"
-                "📈 *Top Downloads:*\n"
+                "📊 <b>Admin Panel</b>\n"
+                "<i>Access verified successfully. Welcome, Admin!</i>\n\n"
+                f"👥 <b>Total Users:</b> {total_users_count}\n"
+                f"📅 <b>Active Today:</b> {daily_active_count}\n"
+                f"📚 <b>Total Downloads:</b> {total_downloads_count}\n\n"
+                "📈 <b>Top Downloads:</b>\n"
             )
             
             top_downloads = analytics.get_top_downloads(10) if hasattr(analytics, 'get_top_downloads') else []
             for sem_branch, count in top_downloads:
-                admin_text += f"• {sem_branch}: {count}\n"
+                safe_sem_branch = html.escape(str(sem_branch))
+                admin_text += f"• {safe_sem_branch}: {count}\n"
             
             markup = MenuBuilder.admin_markup()
-            bot.send_message(message.chat.id, admin_text, parse_mode='Markdown', reply_markup=markup)
+            bot.send_message(message.chat.id, admin_text, parse_mode='HTML', reply_markup=markup)
         except Exception as e:
             logger.error(f"Error in admin_panel: {e}")
-            bot.send_message(message.chat.id, f"⚠️ Error loading admin panel: `{e}`", parse_mode='Markdown')
+            bot.send_message(message.chat.id, f"⚠️ Error loading admin panel: <code>{html.escape(str(e))}</code>", parse_mode='HTML')
 
     # ------------------ BROADCAST COMMAND ------------------ #
     @bot.message_handler(commands=['broadcast'])
@@ -63,7 +65,7 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
             user_list = list(getattr(analytics, 'total_users', []))
             for user_id in user_list:
                 try:
-                    bot.send_message(user_id, f"📢 *Announcement*\n\n{msg}", parse_mode='Markdown')
+                    bot.send_message(user_id, f"📢 <b>Announcement</b>\n\n{html.escape(msg)}", parse_mode='HTML')
                     success += 1
                 except:
                     failed += 1
@@ -78,7 +80,7 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
             )
         except Exception as e:
             logger.error(f"Error in broadcast_message: {e}")
-            bot.send_message(message.chat.id, f"⚠️ Broadcast error: `{e}`", parse_mode='Markdown')
+            bot.send_message(message.chat.id, f"⚠️ Broadcast error: <code>{html.escape(str(e))}</code>", parse_mode='HTML')
 
     # ------------------ HELPER FUNCTION FOR STATS ------------------ #
     def build_stats_text():
@@ -89,19 +91,20 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
         cmd_stats_dict = getattr(analytics, 'command_stats', {}) or {}
 
         stats_text = (
-            "📊 *Detailed Statistics*\n\n"
-            f"👥 *Total Users:* {total_users_count}\n"
-            f"📅 *Active Today:* {daily_active_count}\n"
-            f"📚 *Total Downloads:* {total_downloads_count}\n\n"
-            "📈 *Command Usage:*\n"
+            "📊 <b>Detailed Statistics</b>\n\n"
+            f"👥 <b>Total Users:</b> {total_users_count}\n"
+            f"📅 <b>Active Today:</b> {daily_active_count}\n"
+            f"📚 <b>Total Downloads:</b> {total_downloads_count}\n\n"
+            "📈 <b>Command Usage:</b>\n"
         )
         
         if cmd_stats_dict:
             sorted_cmds = sorted(cmd_stats_dict.items(), key=lambda x: x[1], reverse=True)[:10]
             for cmd, count in sorted_cmds:
-                stats_text += f"• /{cmd}: {count}\n"
+                safe_cmd = html.escape(str(cmd))
+                stats_text += f"• /{safe_cmd}: {count}\n"
         else:
-            stats_text += "_No command stats recorded yet._\n"
+            stats_text += "<i>No command stats recorded yet.</i>\n"
             
         return stats_text
 
@@ -114,10 +117,10 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
                 return
             
             stats_text = build_stats_text()
-            bot.send_message(message.chat.id, stats_text, parse_mode='Markdown')
+            bot.send_message(message.chat.id, stats_text, parse_mode='HTML')
         except Exception as e:
             logger.error(f"Error in user_stats: {e}")
-            bot.send_message(message.chat.id, f"⚠️ Error fetching stats: `{e}`", parse_mode='Markdown')
+            bot.send_message(message.chat.id, f"⚠️ Error fetching stats: <code>{html.escape(str(e))}</code>", parse_mode='HTML')
 
     # ------------------ INLINE BUTTON CALLBACK HANDLER ------------------ #
     @bot.callback_query_handler(func=lambda call: call.data in ['stats', 'admin_stats', '📊 stats'])
@@ -128,7 +131,7 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
                 return
             
             stats_text = build_stats_text()
-            bot.edit_message_text(stats_text, call.message.chat.id, call.message.message_id, parse_mode='Markdown')
+            bot.edit_message_text(stats_text, call.message.chat.id, call.message.message_id, parse_mode='HTML')
             bot.answer_callback_query(call.id)
         except Exception as e:
             logger.error(f"Error in stats_callback: {e}")

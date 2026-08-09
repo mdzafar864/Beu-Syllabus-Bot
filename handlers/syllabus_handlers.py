@@ -19,7 +19,9 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             if check_join_required(bot, message):
                 return
             
+            analytics.track_user(message.chat.id, "syllabus")
             user_session.set(message.chat.id, "step", "waiting_for_branch")
+            
             bot.send_message(
                 message.chat.id,
                 format_branch_text(),
@@ -34,6 +36,8 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
         try:
             if check_join_required(bot, message):
                 return
+            
+            analytics.track_user(message.chat.id, "branch_select")
             
             # Find which branch was selected
             selected_branch = None
@@ -84,6 +88,8 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             if check_join_required(bot, message):
                 return
             
+            analytics.track_user(message.chat.id, "semester_select")
+            
             semester = message.text.replace("📖 ", "")
             session = user_session.get(message.chat.id)
             
@@ -108,7 +114,7 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             original_url = SYLLABUS[semester][branch]
             download_url = get_download_link(original_url)
             
-            # Updated: Passing message.chat.id so active user metrics get updated on download
+            # Passing message.chat.id so active user metrics get updated on download
             analytics.track_download(message.chat.id, semester, branch)
             
             # Create download markup
@@ -158,6 +164,7 @@ def register_syllabus_handlers(bot: TeleBot, analytics: Analytics, user_session:
             if check_join_required(bot, message):
                 return
             
+            analytics.track_user(message.chat.id, "back_to_branches")
             user_session.set(message.chat.id, "selected_branch", None)
             user_session.set(message.chat.id, "step", "waiting_for_branch")
             

@@ -12,5 +12,5 @@ ADMIN_ID = int(os.getenv("ADMIN_ID"))
 LOG_FILE = BASE_DIR / "bot.log"
 ANALYTICS_FILE = BASE_DIR / "analytics.json"
 
-WEB_PORT = int(os.getenv("PORT", 8080))
+WEB_PORT = int(os.getenv("PORT", 10000))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

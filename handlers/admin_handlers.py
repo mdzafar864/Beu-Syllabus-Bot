@@ -1,332 +1,135 @@
-```python
 import logging
 import time
-
 from telebot import TeleBot
-from models.analytics import Analytics
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.menu_builder import MenuBuilder
+from models.analytics import Analytics
 from config import ADMIN_ID
-
 
 logger = logging.getLogger(__name__)
 
-
 def register_admin_handlers(bot: TeleBot, analytics: Analytics):
-
-    # =========================================================
-    # ADMIN ACCESS CHECK
-    # =========================================================
-    def is_admin(message):
-        return message.from_user.id == ADMIN_ID
-
-    # =========================================================
-    # UNAUTHORIZED MESSAGE
-    # =========================================================
-    def send_access_denied(message):
-        bot.send_message(
-            message.chat.id,
-            "🔐 Admin Access Required\n\n"
-            "You don't have permission to access this section."
-        )
-
-    # =========================================================
-    # /admin
-    # =========================================================
-    @bot.message_handler(commands=["admin"])
+    
+    # ------------------ ADMIN PANEL COMMAND ------------------ #
+    @bot.message_handler(commands=['admin'])
     def admin_panel(message):
         try:
-            if not is_admin(message):
-                send_access_denied(message)
+            if message.from_user.id != ADMIN_ID:
+                bot.send_message(message.chat.id, "🔐 Admin Access Required\n\nYou don't have permission to access this section.")
                 return
-
-            total_users = getattr(
-                analytics,
-                "total_users",
-                set()
-            )
-
-            daily_active = getattr(
-                analytics,
-                "daily_active",
-                set()
-            )
-
-            daily_downloads = getattr(
-                analytics,
-                "daily_downloads",
-                {}
-            )
-
-            try:
-                total_downloads = sum(
-                    daily_downloads.values()
-                )
-            except Exception:
-                total_downloads = 0
+            
+            total_users_count = len(getattr(analytics, 'total_users', []))
+            daily_active_count = len(getattr(analytics, 'daily_active', []))
+            daily_downloads_dict = getattr(analytics, 'daily_downloads', {}) or {}
+            total_downloads_count = sum(daily_downloads_dict.values()) if daily_downloads_dict else 0
 
             admin_text = (
                 "📊 *Admin Panel*\n"
                 "_Access verified successfully. Welcome, Admin!_\n\n"
-                f"👥 *Total Users:* {len(total_users)}\n"
-                f"📅 *Active Today:* {len(daily_active)}\n"
-                f"📚 *Total Downloads:* {total_downloads}\n\n"
+                f"👥 *Total Users:* {total_users_count}\n"
+                f"📅 *Active Today:* {daily_active_count}\n"
+                f"📚 *Total Downloads:* {total_downloads_count}\n\n"
                 "📈 *Top Downloads:*\n"
             )
-
-            try:
-                top_downloads = analytics.get_top_downloads(10)
-
-                if top_downloads:
-                    for sem_branch, count in top_downloads:
-                        admin_text += (
-                            f"• {sem_branch}: {count}\n"
-                        )
-                else:
-                    admin_text += (
-                        "• No download data available.\n"
-                    )
-
-            except Exception as e:
-                logger.error(
-                    f"Error getting top downloads: {e}"
-                )
-
-                admin_text += (
-                    "• No download data available.\n"
-                )
-
+            
+            top_downloads = analytics.get_top_downloads(10) if hasattr(analytics, 'get_top_downloads') else []
+            for sem_branch, count in top_downloads:
+                admin_text += f"• {sem_branch}: {count}\n"
+            
             markup = MenuBuilder.admin_markup()
-
-            bot.send_message(
-                message.chat.id,
-                admin_text,
-                parse_mode="Markdown",
-                reply_markup=markup
-            )
-
+            bot.send_message(message.chat.id, admin_text, parse_mode='Markdown', reply_markup=markup)
         except Exception as e:
-            logger.exception(
-                f"Error in admin_panel: {e}"
-            )
+            logger.error(f"Error in admin_panel: {e}")
+            bot.send_message(message.chat.id, f"⚠️ Error loading admin panel: `{e}`", parse_mode='Markdown')
 
-            bot.send_message(
-                message.chat.id,
-                "⚠️ Admin panel load karte waqt error aa gaya."
-            )
-
-    # =========================================================
-    # /broadcast
-    # =========================================================
-    @bot.message_handler(commands=["broadcast"])
+    # ------------------ BROADCAST COMMAND ------------------ #
+    @bot.message_handler(commands=['broadcast'])
     def broadcast_message(message):
         try:
-            if not is_admin(message):
-                send_access_denied(message)
+            if message.from_user.id != ADMIN_ID:
+                bot.send_message(message.chat.id, "🔐 Admin Access Required\n\nYou don't have permission to access this section.")
                 return
-
-            # Remove /broadcast command
-            msg = message.text[
-                len("/broadcast"):
-            ].strip()
-
+            
+            msg = message.text.replace('/broadcast', '').strip()
             if not msg:
-                bot.send_message(
-                    message.chat.id,
-                    "⚠️ *Usage:*\n\n"
-                    "`/broadcast Your message here`",
-                    parse_mode="Markdown"
-                )
+                bot.send_message(message.chat.id, "⚠️ Usage: /broadcast <message>")
                 return
-
-            total_users = getattr(
-                analytics,
-                "total_users",
-                set()
-            )
-
+            
             success = 0
             failed = 0
-
-            status_msg = bot.send_message(
-                message.chat.id,
-                "📤 *Sending broadcast...*\n\n"
-                "Please wait.",
-                parse_mode="Markdown"
-            )
-
-            for user_id in list(total_users):
-
+            
+            status_msg = bot.send_message(message.chat.id, "📤 Sending broadcast...")
+            
+            user_list = list(getattr(analytics, 'total_users', []))
+            for user_id in user_list:
                 try:
-                    bot.send_message(
-                        user_id,
-                        f"📢 *Announcement*\n\n{msg}",
-                        parse_mode="Markdown"
-                    )
-
+                    bot.send_message(user_id, f"📢 *Announcement*\n\n{msg}", parse_mode='Markdown')
                     success += 1
-
-                except Exception as e:
+                except:
                     failed += 1
-
-                    logger.warning(
-                        f"Broadcast failed for user "
-                        f"{user_id}: {e}"
-                    )
-
-                # Telegram rate-limit protection
                 time.sleep(0.1)
-
-            result_text = (
-                "✅ *Broadcast Completed!*\n\n"
-                f"✓ Success: {success}\n"
-                f"✗ Failed: {failed}\n"
-                f"👥 Total: {success + failed}"
-            )
-
+            
             bot.edit_message_text(
-                result_text,
+                f"✅ Broadcast completed!\n\n"
+                f"✓ Success: {success}\n"
+                f"✗ Failed: {failed}",
                 message.chat.id,
-                status_msg.message_id,
-                parse_mode="Markdown"
+                status_msg.message_id
             )
-
         except Exception as e:
-            logger.exception(
-                f"Error in broadcast_message: {e}"
-            )
+            logger.error(f"Error in broadcast_message: {e}")
+            bot.send_message(message.chat.id, f"⚠️ Broadcast error: `{e}`", parse_mode='Markdown')
 
-            bot.send_message(
-                message.chat.id,
-                "❌ Broadcast complete nahi ho saka."
-            )
+    # ------------------ HELPER FUNCTION FOR STATS ------------------ #
+    def build_stats_text():
+        total_users_count = len(getattr(analytics, 'total_users', []))
+        daily_active_count = len(getattr(analytics, 'daily_active', []))
+        daily_downloads_dict = getattr(analytics, 'daily_downloads', {}) or {}
+        total_downloads_count = sum(daily_downloads_dict.values()) if daily_downloads_dict else 0
+        cmd_stats_dict = getattr(analytics, 'command_stats', {}) or {}
 
-    # =========================================================
-    # /stats
-    # =========================================================
-    @bot.message_handler(commands=["stats"])
+        stats_text = (
+            "📊 *Detailed Statistics*\n\n"
+            f"👥 *Total Users:* {total_users_count}\n"
+            f"📅 *Active Today:* {daily_active_count}\n"
+            f"📚 *Total Downloads:* {total_downloads_count}\n\n"
+            "📈 *Command Usage:*\n"
+        )
+        
+        if cmd_stats_dict:
+            sorted_cmds = sorted(cmd_stats_dict.items(), key=lambda x: x[1], reverse=True)[:10]
+            for cmd, count in sorted_cmds:
+                stats_text += f"• /{cmd}: {count}\n"
+        else:
+            stats_text += "_No command stats recorded yet._\n"
+            
+        return stats_text
+
+    # ------------------ /stats TEXT COMMAND ------------------ #
+    @bot.message_handler(commands=['stats'])
     def user_stats(message):
         try:
-            if not is_admin(message):
-                send_access_denied(message)
+            if message.from_user.id != ADMIN_ID:
+                bot.send_message(message.chat.id, "🔐 Admin Access Required\n\nYou don't have permission to access this section.")
                 return
-
-            # -------------------------------------------------
-            # GET ANALYTICS DATA SAFELY
-            # -------------------------------------------------
-            total_users = getattr(
-                analytics,
-                "total_users",
-                set()
-            )
-
-            daily_active = getattr(
-                analytics,
-                "daily_active",
-                set()
-            )
-
-            daily_downloads = getattr(
-                analytics,
-                "daily_downloads",
-                {}
-            )
-
-            command_stats = getattr(
-                analytics,
-                "command_stats",
-                {}
-            )
-
-            # -------------------------------------------------
-            # TOTAL DOWNLOADS
-            # -------------------------------------------------
-            try:
-                total_downloads = sum(
-                    daily_downloads.values()
-                )
-            except Exception:
-                total_downloads = 0
-
-            # -------------------------------------------------
-            # BASIC STATISTICS
-            # -------------------------------------------------
-            stats_text = (
-                "📊 *Detailed Statistics*\n\n"
-                f"👥 *Total Users:* {len(total_users)}\n"
-                f"📅 *Active Today:* {len(daily_active)}\n"
-                f"📚 *Total Downloads:* {total_downloads}\n\n"
-                "📈 *Command Usage:*\n"
-            )
-
-            # -------------------------------------------------
-            # COMMAND USAGE
-            # -------------------------------------------------
-            if (
-                isinstance(command_stats, dict)
-                and command_stats
-            ):
-                try:
-                    sorted_commands = sorted(
-                        command_stats.items(),
-                        key=lambda x: x[1],
-                        reverse=True
-                    )[:10]
-
-                    for cmd, count in sorted_commands:
-
-                        cmd_name = str(cmd)
-
-                        if not cmd_name.startswith("/"):
-                            cmd_name = "/" + cmd_name
-
-                        stats_text += (
-                            f"• `{cmd_name}` — {count}\n"
-                        )
-
-                except Exception as e:
-                    logger.error(
-                        f"Error sorting command stats: {e}"
-                    )
-
-                    stats_text += (
-                        "• Unable to load command usage.\n"
-                    )
-
-            else:
-                stats_text += (
-                    "• No command usage data available.\n"
-                )
-
-            # -------------------------------------------------
-            # SEND STATISTICS
-            # -------------------------------------------------
-            bot.send_message(
-                message.chat.id,
-                stats_text,
-                parse_mode="Markdown"
-            )
-
-            logger.info(
-                f"Admin stats viewed by "
-                f"user {message.from_user.id}"
-            )
-
+            
+            stats_text = build_stats_text()
+            bot.send_message(message.chat.id, stats_text, parse_mode='Markdown')
         except Exception as e:
-            logger.exception(
-                f"Error in user_stats: {e}"
-            )
+            logger.error(f"Error in user_stats: {e}")
+            bot.send_message(message.chat.id, f"⚠️ Error fetching stats: `{e}`", parse_mode='Markdown')
 
-            bot.send_message(
-                message.chat.id,
-                "❌ Statistics load karte waqt "
-                "error aa gaya.\n\n"
-                "Please check bot logs."
-            )
-
-    # =========================================================
-    # ADMIN HANDLERS REGISTERED
-    # =========================================================
-    logger.info(
-        "✅ Admin handlers registered successfully"
-    )
-```           
+    # ------------------ INLINE BUTTON CALLBACK HANDLER ------------------ #
+    @bot.callback_query_handler(func=lambda call: call.data in ['stats', 'admin_stats', '📊 stats'])
+    def stats_callback(call):
+        try:
+            if call.from_user.id != ADMIN_ID:
+                bot.answer_callback_query(call.id, "🔐 Admin Access Required", show_alert=True)
+                return
+            
+            stats_text = build_stats_text()
+            bot.edit_message_text(stats_text, call.message.chat.id, call.message.message_id, parse_mode='Markdown')
+            bot.answer_callback_query(call.id)
+        except Exception as e:
+            logger.error(f"Error in stats_callback: {e}")
+            bot.answer_callback_query(call.id, "⚠️ Could not load stats.", show_alert=True)

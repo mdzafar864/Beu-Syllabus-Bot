@@ -14,7 +14,7 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
     def admin_panel(message):
         try:
             if message.from_user.id != ADMIN_ID:
-                bot.send_message(message.chat.id, "⛔ Unauthorized access!")
+                bot.send_message(message.chat.id, "🔒 Aapko is section ko access karne ki permission nahi hai.")
                 return
             
             admin_text = (
@@ -39,7 +39,7 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
     def broadcast_message(message):
         try:
             if message.from_user.id != ADMIN_ID:
-                bot.send_message(message.chat.id, "⛔ Unauthorized access!")
+                bot.send_message(message.chat.id, "🔒 Aapko is section ko access karne ki permission nahi hai.")
                 return
             
             msg = message.text.replace('/broadcast', '').strip()
@@ -74,7 +74,7 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
     def user_stats(message):
         try:
             if message.from_user.id != ADMIN_ID:
-                bot.send_message(message.chat.id, "⛔ Unauthorized access!")
+                bot.send_message(message.chat.id, "🔒 Aapko is section ko access karne ki permission nahi hai.")
                 return
             
             stats_text = (

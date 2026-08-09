@@ -14,15 +14,20 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
     def admin_panel(message):
         try:
             if message.from_user.id != ADMIN_ID:
-                bot.send_message(message.chat.id, "⛔ Unauthorized access!")
+                bot.send_message(
+                    message.chat.id, 
+                    "⚠️ *Admin Access Required*\n\nYou don't have permission to access this section.", 
+                    parse_mode='Markdown'
+                )
                 return
             
             admin_text = (
-                "👑 *Admin Panel*\n\n"
-                f"📊 *Total Users:* {len(analytics.total_users)}\n"
-                f"📅 *Active Today:* {len(analytics.daily_active)}\n"
-                f"📚 *Total Downloads:* {sum(analytics.daily_downloads.values())}\n\n"
-                "📈 *Top Downloads:*\n"
+                "<b>Admin Panel</b>\n\n"
+                "<i>Access verified successfully. Welcome, Admin!</i>\n\n"
+                f"<b>Total Users:</b> {len(analytics.total_users)}\n"
+                f"<b>Active Today:</b> {len(analytics.daily_active)}\n"
+                f"<b>Total Downloads:</b> {sum(analytics.daily_downloads.values())}\n\n"
+                "<b>Top Downloads:</b>\n"
             )
             
             top_downloads = analytics.get_top_downloads(10)
@@ -31,7 +36,7 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
             
             markup = MenuBuilder.admin_markup()
             
-            bot.send_message(message.chat.id, admin_text, parse_mode='Markdown', reply_markup=markup)
+            bot.send_message(message.chat.id, admin_text, parse_mode='HTML', reply_markup=markup)
         except Exception as e:
             logger.error(f"Error in admin_panel: {e}")
     
@@ -39,7 +44,11 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
     def broadcast_message(message):
         try:
             if message.from_user.id != ADMIN_ID:
-                bot.send_message(message.chat.id, "⛔ Unauthorized access!")
+                bot.send_message(
+                    message.chat.id, 
+                    "⚠️ *Admin Access Required*\n\nYou don't have permission to access this section.", 
+                    parse_mode='Markdown'
+                )
                 return
             
             msg = message.text.replace('/broadcast', '').strip()
@@ -74,7 +83,11 @@ def register_admin_handlers(bot: TeleBot, analytics: Analytics):
     def user_stats(message):
         try:
             if message.from_user.id != ADMIN_ID:
-                bot.send_message(message.chat.id, "⛔ Unauthorized access!")
+                bot.send_message(
+                    message.chat.id, 
+                    "⚠️ *Admin Access Required*\n\nYou don't have permission to access this section.", 
+                    parse_mode='Markdown'
+                )
                 return
             
             stats_text = (

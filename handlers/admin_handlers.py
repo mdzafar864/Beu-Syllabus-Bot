@@ -12,10 +12,13 @@ logger = logging.getLogger(**name**)
 def register_admin_handlers(bot: TeleBot, analytics: Analytics):
 
 ```
-# ------------------ ADMIN PANEL COMMAND ------------------ #
+# =========================================================
+# ADMIN PANEL COMMAND
+# =========================================================
 @bot.message_handler(commands=["admin"])
 def admin_panel(message):
     try:
+        # Check admin permission
         if message.from_user.id != ADMIN_ID:
             bot.send_message(
                 message.chat.id,
@@ -24,6 +27,7 @@ def admin_panel(message):
             )
             return
 
+        # Get analytics data safely
         total_users_count = len(
             getattr(analytics, "total_users", [])
         )
@@ -36,12 +40,11 @@ def admin_panel(message):
             getattr(analytics, "daily_downloads", {}) or {}
         )
 
-        total_downloads_count = (
-            sum(daily_downloads_dict.values())
-            if daily_downloads_dict
-            else 0
+        total_downloads_count = sum(
+            daily_downloads_dict.values()
         )
 
+        # Admin panel text
         admin_text = (
             "📊 <b>Admin Panel</b>\n"
             "<i>Access verified successfully. Welcome, Admin!</i>\n\n"
@@ -51,21 +54,27 @@ def admin_panel(message):
             "📈 <b>Top Downloads:</b>\n"
         )
 
-        top_downloads = (
-            analytics.get_top_downloads(10)
-            if hasattr(analytics, "get_top_downloads")
-            else []
-        )
+        # Get top downloads
+        if hasattr(analytics, "get_top_downloads"):
+            top_downloads = analytics.get_top_downloads(10)
+        else:
+            top_downloads = []
 
         if top_downloads:
             for sem_branch, count in top_downloads:
-                safe_sem_branch = html.escape(str(sem_branch))
+                safe_sem_branch = html.escape(
+                    str(sem_branch)
+                )
+
                 admin_text += (
                     f"• {safe_sem_branch}: {count}\n"
                 )
         else:
-            admin_text += "<i>No download data available.</i>\n"
+            admin_text += (
+                "<i>No download data available.</i>\n"
+            )
 
+        # Admin keyboard
         markup = MenuBuilder.admin_markup()
 
         bot.send_message(
@@ -78,17 +87,25 @@ def admin_panel(message):
     except Exception as e:
         logger.exception("Error in admin_panel")
 
-        bot.send_message(
-            message.chat.id,
-            "⚠️ Error loading admin panel:\n"
-            f"<code>{html.escape(str(e))}</code>",
-            parse_mode="HTML"
-        )
+        try:
+            bot.send_message(
+                message.chat.id,
+                "⚠️ <b>Error loading admin panel</b>\n\n"
+                f"<code>{html.escape(str(e))}</code>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send admin panel error message"
+            )
 
-# ------------------ BROADCAST COMMAND ------------------ #
+# =========================================================
+# BROADCAST COMMAND
+# =========================================================
 @bot.message_handler(commands=["broadcast"])
 def broadcast_message(message):
     try:
+        # Check admin permission
         if message.from_user.id != ADMIN_ID:
             bot.send_message(
                 message.chat.id,
@@ -97,27 +114,38 @@ def broadcast_message(message):
             )
             return
 
-        msg = message.text.replace("/broadcast", "", 1).strip()
+        # Extract broadcast message
+        msg = message.text.replace(
+            "/broadcast",
+            "",
+            1
+        ).strip()
 
         if not msg:
             bot.send_message(
                 message.chat.id,
-                "⚠️ Usage: /broadcast <message>"
+                "⚠️ <b>Usage:</b>\n"
+                "<code>/broadcast Your message here</code>",
+                parse_mode="HTML"
             )
             return
 
         success = 0
         failed = 0
 
+        # Status message
         status_msg = bot.send_message(
             message.chat.id,
-            "📤 Sending broadcast..."
+            "📤 <b>Sending broadcast...</b>",
+            parse_mode="HTML"
         )
 
+        # Get users
         user_list = list(
             getattr(analytics, "total_users", [])
         )
 
+        # Send broadcast
         for user_id in user_list:
             try:
                 bot.send_message(
@@ -126,35 +154,47 @@ def broadcast_message(message):
                     f"{html.escape(msg)}",
                     parse_mode="HTML"
                 )
+
                 success += 1
 
             except Exception:
                 failed += 1
 
-            # Small delay to reduce Telegram rate-limit risk
+            # Small delay to avoid Telegram rate limits
             time.sleep(0.1)
 
+        # Update status
         bot.edit_message_text(
-            "✅ <b>Broadcast completed!</b>\n\n"
-            f"✓ Success: {success}\n"
-            f"✗ Failed: {failed}",
+            "✅ <b>Broadcast Completed!</b>\n\n"
+            f"✓ <b>Success:</b> {success}\n"
+            f"✗ <b>Failed:</b> {failed}",
             message.chat.id,
             status_msg.message_id,
             parse_mode="HTML"
         )
 
     except Exception as e:
-        logger.exception("Error in broadcast_message")
-
-        bot.send_message(
-            message.chat.id,
-            "⚠️ Broadcast error:\n"
-            f"<code>{html.escape(str(e))}</code>",
-            parse_mode="HTML"
+        logger.exception(
+            "Error in broadcast_message"
         )
 
-# ------------------ HELPER FUNCTION FOR STATS ------------------ #
+        try:
+            bot.send_message(
+                message.chat.id,
+                "⚠️ <b>Broadcast Error</b>\n\n"
+                f"<code>{html.escape(str(e))}</code>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send broadcast error"
+            )
+
+# =========================================================
+# BUILD STATISTICS TEXT
+# =========================================================
 def build_stats_text():
+
     total_users_count = len(
         getattr(analytics, "total_users", [])
     )
@@ -167,13 +207,11 @@ def build_stats_text():
         getattr(analytics, "daily_downloads", {}) or {}
     )
 
-    total_downloads_count = (
-        sum(daily_downloads_dict.values())
-        if daily_downloads_dict
-        else 0
+    total_downloads_count = sum(
+        daily_downloads_dict.values()
     )
 
-    cmd_stats_dict = (
+    command_stats_dict = (
         getattr(analytics, "command_stats", {}) or {}
     )
 
@@ -185,16 +223,24 @@ def build_stats_text():
         "📈 <b>Command Usage:</b>\n"
     )
 
-    if cmd_stats_dict:
-        sorted_cmds = sorted(
-            cmd_stats_dict.items(),
-            key=lambda x: x[1],
+    # Command statistics
+    if command_stats_dict:
+
+        sorted_commands = sorted(
+            command_stats_dict.items(),
+            key=lambda item: item[1],
             reverse=True
         )[:10]
 
-        for cmd, count in sorted_cmds:
-            safe_cmd = html.escape(str(cmd))
-            stats_text += f"• /{safe_cmd}: {count}\n"
+        for command, count in sorted_commands:
+
+            safe_command = html.escape(
+                str(command)
+            )
+
+            stats_text += (
+                f"• /{safe_command}: {count}\n"
+            )
 
     else:
         stats_text += (
@@ -203,10 +249,13 @@ def build_stats_text():
 
     return stats_text
 
-# ------------------ /stats TEXT COMMAND ------------------ #
+# =========================================================
+# /STATS COMMAND
+# =========================================================
 @bot.message_handler(commands=["stats"])
 def user_stats(message):
     try:
+        # Check admin permission
         if message.from_user.id != ADMIN_ID:
             bot.send_message(
                 message.chat.id,
@@ -224,16 +273,25 @@ def user_stats(message):
         )
 
     except Exception as e:
-        logger.exception("Error in user_stats")
-
-        bot.send_message(
-            message.chat.id,
-            "⚠️ Error fetching stats:\n"
-            f"<code>{html.escape(str(e))}</code>",
-            parse_mode="HTML"
+        logger.exception(
+            "Error in user_stats"
         )
 
-# ------------------ INLINE BUTTON CALLBACK HANDLER ------------------ #
+        try:
+            bot.send_message(
+                message.chat.id,
+                "⚠️ <b>Error fetching statistics</b>\n\n"
+                f"<code>{html.escape(str(e))}</code>",
+                parse_mode="HTML"
+            )
+        except Exception:
+            logger.exception(
+                "Failed to send statistics error"
+            )
+
+# =========================================================
+# INLINE STATS CALLBACK
+# =========================================================
 @bot.callback_query_handler(
     func=lambda call: call.data in [
         "stats",
@@ -243,6 +301,7 @@ def user_stats(message):
 )
 def stats_callback(call):
     try:
+        # Check admin permission
         if call.from_user.id != ADMIN_ID:
             bot.answer_callback_query(
                 call.id,
@@ -260,13 +319,22 @@ def stats_callback(call):
             parse_mode="HTML"
         )
 
-        bot.answer_callback_query(call.id)
+        bot.answer_callback_query(
+            call.id
+        )
 
     except Exception as e:
-        logger.exception("Error in stats_callback")
-
-        bot.answer_callback_query(
-            call.id,
-            "⚠️ Could not load stats.",
-            show_alert=True
+        logger.exception(
+            "Error in stats_callback"
         )
+
+        try:
+            bot.answer_callback_query(
+                call.id,
+                "⚠️ Could not load stats.",
+                show_alert=True
+            )
+        except Exception:
+            logger.exception(
+                "Failed to answer callback query"
+            )
